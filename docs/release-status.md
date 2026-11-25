@@ -15,7 +15,7 @@ Production switched from public v0.1.0 to public v0.1.1 using a new versioned re
 
 The final-code ten-minute mixed-protocol synthetic soak completed **7,616 requests** with background polling and CPA RSS **75,332–80,632 KiB** (final **79,340 KiB**), under `GOGC=20`/`GOMEMLIMIT=256MiB`. The remaining exhaustion/failover/rollback assertions passed afterward. The synthetic all-exhausted case intentionally logs a 503; it is an expected negative test, not a soak failure. An earlier 7,800-request soak passed its load phase but failed an immediate 429-recovery assertion; the harness now waits for the host cooldown and does not claim recovery from 401 by verification alone.
 
-Browser testing verified discovery, mode saves, disable/reenable and rollback inference, and showed v0.1.1 running after refresh. See [test matrix](test-matrix.md) for coverage, parser regressions and explicit limits. Final natural-refresh observation is recorded below once complete.
+Browser testing verified discovery, mode saves, disable/reenable and rollback inference, and showed v0.1.1 running after refresh. See [test matrix](test-matrix.md) for coverage, parser regressions and explicit limits. Final uninterrupted v0.1.1 observation covered **630.7 seconds**, recording **nine distinct successful quota snapshots for each of nine accounts**, with no worker failure. All nine had error-free quota snapshots at completion. The six-request independent ordering/usage/tool-follow-up gate passed again after observation. Deployment remains **active**, with **1m polling / 5m max age**. No account tiers/disabled flags or unrelated settings changed. Final documentation CI: https://github.com/kazimshah39/quota-first-router/actions/runs/45563831596 — passed.
 
 ## v0.1.0 — published
 
