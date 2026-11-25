@@ -30,11 +30,11 @@ Run: `make test integration-test`; `make soak-test SOAK_SECONDS=600`. Fuzz: `go 
 
 ## Live and dashboard checks
 
-With explicit operator authorization, public v0.1.0 was downloaded and checksum-verified, then loaded from a new versioned file without overwriting a mapped library or restarting shared CPA. Nine enabled Codex accounts were discovered. Protected configuration/library backups and detailed account evidence remain outside tracked files.
+With explicit operator authorization, public v0.1.0 and then v0.1.1 were downloaded and checksum-verified, then loaded from new versioned files without overwriting a mapped library or restarting shared CPA. Nine enabled Codex accounts were discovered. Protected configuration/library backups and detailed account evidence remain outside tracked files.
 
-The first live matrix passed **26/26** bounded requests across four discovered available models, both protocols and streaming modes, eight concurrent requests and a forced tool call. Read-only OMC records attributed all 26; all **25 active** requests agreed with the plugin proposal. The shadow request kept the host-selected account. Independent top-tier/reset ranking is checked again for the final release; model names/account IDs are deliberately omitted from public evidence.
+Each of the v0.1.0 and v0.1.1 live matrices passed **26/26** bounded requests across four discovered available models, both protocols and streaming modes, eight concurrent requests and a forced tool call. Read-only OMC records attributed all 26; all **25 active** requests agreed with the plugin proposal. The shadow request kept the host-selected account. The final v0.1.1 six-request gate independently checked top-tier/reset ranking and actual usage attribution for all four models, then verified the forced function call and its output follow-up. Model names/account IDs are deliberately omitted from public evidence.
 
-Chrome DevTools browser testing verified plugin discovery, five declared fields, saved shadow/active modes, enabled switch, disable/reenable, and a successful ordinary request while disabled. A briefly stale dashboard during reenable resolved on refresh; no browser data was cleared. Final public patch, installer, natural refresh observation, account-field preservation and active deployment results are recorded in `release-status.md` after verification.
+Chrome DevTools browser testing verified plugin discovery, five declared fields, saved shadow/active modes, enabled switch, disable/reenable, and a successful ordinary request while disabled. A briefly stale dashboard during reenable resolved on refresh; no browser data was cleared. The final public patch, installer, natural refresh observation, account-field preservation and active deployment results are recorded in `release-status.md`.
 
 ## Boundaries and observed host behavior
 

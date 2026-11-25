@@ -21,6 +21,10 @@ The CPA download is verified against its release checksums and a pinned archive 
 - Bounded soak: repeated streaming/non-streaming/account routing under GC pressure while background quota refresh continues.
 - Release packaging: expected root paths/ELF architecture and checksum validation; corrupted checksum/unexpected paths rejected.
 
+## Comprehensive v0.1.1 validation
+
+See [test matrix](test-matrix.md) and [release status](release-status.md) for the expanded regression fixes, final fuzz/race results, 7,616-request ten-minute resource-measured soak, public installer verification, two protocol/model live matrices, tool follow-up, dashboard controls, versioned upgrade and final deployment evidence. Historical checks below remain historical; current results are not inferred from old artifacts.
+
 ## Prior private live verification
 
 A bounded private multi-account canary succeeded before public release preparation:

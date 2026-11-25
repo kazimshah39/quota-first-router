@@ -44,7 +44,7 @@ Set `GO=go` to use your installed Go. `make cpa` downloads CPA 8.1.0 and verifie
 
 ## Install and observe
 
-**Supported: CPA 8.1.0, Linux amd64/glibc 2.34+.** Other platforms are not included in v0.1.0.
+**Supported: CPA 8.1.0, Linux amd64/glibc 2.34+.** Other platforms are not included in the current release.
 
 While the official store listing is awaiting review, add this custom registry source in CPA's configuration, keeping any existing sources:
 
@@ -74,7 +74,7 @@ plugins:
       request_timeout: 10s
 ```
 
-Copy the regular `.so` file into the plugin directory. CPA 8.1.0 supports loading/configuring it through its existing plugin management flow; verify registration, never assume copying alone succeeded. `priority` above orders scheduler **plugins**, not account tiers. CPA 8.1.0 invokes only its highest-priority active scheduler; another scheduler can supersede this one.
+For a first installation, copy a regular `.so` file into the plugin directory. Never overwrite a potentially mapped library during an upgrade; see [version upgrades](docs/operations.md#native-version-upgrades). CPA 8.1.0 supports loading/configuring it through its existing plugin management flow; verify registration, never assume copying alone succeeded. `priority` above orders scheduler **plugins**, not account tiers. CPA 8.1.0 invokes only its highest-priority active scheduler; another scheduler can supersede this one.
 
 - **shadow**: records proposed selection; returns no account choice or exclusions.
 - **active**: chooses accounts and excludes fresh exhausted accounts.
@@ -109,6 +109,8 @@ Use existing CPA management authentication. The status response contains mode, s
 - [Reference repositories and attribution](docs/references.md)
 - [Operation and rollback](docs/operations.md)
 - [Verification evidence](docs/verification.md)
+- [Comprehensive test matrix](docs/test-matrix.md)
+- [Current release and deployment results](docs/release-status.md)
 
 `references/` contains four independent, ignored Git clones for research (reset-router, CPA, 9router, and official OpenAI Codex). They are not submodules or build dependencies. MIT-licensed code was adapted from WebDevCaptain/quota-reset-router; required attribution is retained. Plugin metadata points to [this project](https://github.com/kazimshah39/quota-first-router); upstream code attribution remains in LICENSE and THIRD_PARTY_NOTICES.md.
 
