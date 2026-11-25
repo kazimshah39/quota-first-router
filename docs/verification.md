@@ -41,4 +41,6 @@ Account tier priorities and enabled/disabled flags were unchanged. The live expe
 - Global proxy must be set explicitly in plugin configuration if CPA uses one; custom base URLs are explicitly unsupported for quota polling.
 - Native plugins share CPA's process, and provider quota APIs can change. Checksums establish artifact integrity, not a guarantee of provider compatibility forever.
 
+Published v0.1.0 installer checks passed against real CPA: public custom-source discovery, actual GitHub ZIP/checksum download, shadow 1m/5m defaults, active/disable, same-version reinstall after isolated-host restart, followed by the full routing suite against that installed library. See [release status](release-status.md) for asset hashes, successful Actions run links and the official listing PR.
+
 See GitHub Actions for published-commit results and docs/operations.md for install/rollback steps. Official-store availability depends on the upstream registry PR; custom-source installation can be used independently.
