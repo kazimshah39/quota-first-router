@@ -5,6 +5,7 @@ import argparse
 import concurrent.futures
 import hashlib
 import http.server
+import http.client
 import json
 import os
 from pathlib import Path
@@ -43,10 +44,14 @@ def main():
     exhausted = set()
     weekly = set()
     failures = set()
+    failure_status = 429
+    rss_samples = []
     quota_error = False
     messages = []
     quota_calls = []
     errors = []
+    upstream_requests = []
+    cancellation_started = threading.Event()
 
     class Fixture(http.server.BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -58,7 +63,10 @@ def main():
             self.send_header('Content-Type', content_type)
             self.send_header('Content-Length', str(len(raw)))
             self.end_headers()
-            self.wfile.write(raw)
+            try:
+                self.wfile.write(raw)
+            except (BrokenPipeError, ConnectionResetError, ssl.SSLEOFError):
+                pass  # Expected when the synthetic cancellation client disconnects.
 
         def account(self):
             account = self.headers.get('Authorization', '').removeprefix('Bearer synthetic-')
@@ -90,8 +98,12 @@ def main():
             account = self.account()
             request = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
             messages.append(account)
+            upstream_requests.append(request)
+            if 'QFR_CANCEL' in json.dumps(request.get('input')):
+                cancellation_started.set()
+                time.sleep(1)
             if account in failures:
-                return self.send(429, {'error': {'type': 'usage_limit_reached', 'message': 'fixture exhausted', 'resets_at': int(time.time()) + 60}})
+                return self.send(failure_status, {'error': {'type': 'usage_limit_reached' if failure_status == 429 else 'server_error', 'message': 'fixture failure', 'resets_at': int(time.time()) + 60}})
             response = {'id': 'resp_fixture', 'object': 'response', 'status': 'completed', 'model': MODEL,
                         'output': [{'id': 'msg_fixture', 'type': 'message', 'role': 'assistant', 'status': 'completed',
                                     'content': [{'type': 'output_text', 'text': account, 'annotations': []}]}],
@@ -205,6 +217,15 @@ plugins:
             api(BASE + '/config', {'mode': mode, 'poll_interval': interval}, 'PATCH')
             wait(lambda: ready(mode) and status()['poll_interval'] == interval + '0s', 'quota refresh and mode ' + mode)
 
+        def chat(stream=False):
+            raw = api('/v1/chat/completions', {'model': MODEL, 'messages': [{'role':'user','content':'Synthetic chat check'}], 'stream':stream}, management=False)
+            if stream: return raw.decode()
+            result=json.loads(raw); return result['choices'][0]['message']['content']
+
+        def rss():
+            lines=Path(f'/proc/{proc.pid}/status').read_text().splitlines()
+            return int(next(l.split()[1] for l in lines if l.startswith('VmRSS:')))
+
         def message(stream=False):
             try:
                 raw = api('/v1/responses', {'model': MODEL, 'input': 'Synthetic routing check', 'stream': stream}, management=False)
@@ -241,6 +262,8 @@ plugins:
             wait(lambda: message() == 'c-third', 'model eligibility filter')
             bfile.write_text(json.dumps(bstored))
             wait(lambda: message() == 'b-sooner', 'model eligibility restored')
+            assert chat() == 'b-sooner', 'chat completion routing'
+            assert 'b-sooner' in chat(True), 'chat streaming routing'
             before = len(quota_calls)
             assert message() == 'b-sooner', 'active reset ranking'
             assert 'b-sooner' in message(True), 'streaming'
@@ -251,12 +274,18 @@ plugins:
             end, soak_requests = time.monotonic() + soak_seconds, 0
             with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
                 while time.monotonic() < end:
-                    assert list(pool.map(lambda _: message(), range(8))) == ['b-sooner'] * 8
+                    replies=list(pool.map(lambda i: chat(i%2==0) if i%3==0 else message(i%2==0), range(8)))
+                    assert all(any(account in r for account in ['a-later', 'b-sooner', 'c-third']) for r in replies), 'soak selected outside usable top tier'
+                    if not all('b-sooner' in r for r in replies):
+                        print('SOAK fallback observation', json.dumps(status()), flush=True)
+                    rss_samples.append(rss())
                     soak_requests += 8
                     time.sleep(.2)
             if soak_seconds:
                 assert len(quota_calls) > before, 'background polling did not occur during soak'
-                print(f'PASS soak: {soak_requests} requests in {soak_seconds} seconds; background polling continued')
+                assert max(rss_samples) < 512*1024, 'RSS exceeded 512MiB budget'
+                assert max(rss_samples[-min(100,len(rss_samples)):])-min(rss_samples[:min(100,len(rss_samples))]) < 128*1024, 'RSS growth exceeded 128MiB'
+                print(f'PASS soak: {soak_requests} mixed protocol/stream requests in {soak_seconds} seconds; background polling continued; RSS KiB min={min(rss_samples)} max={max(rss_samples)} final={rss_samples[-1]}')
             exhausted.add('b-sooner')
             configure()
             assert message() == 'c-third', 'within-tier exhaustion'
@@ -291,8 +320,36 @@ plugins:
             wait(lambda: message() == 'a-later', 'higher-priority competing scheduler')
             api('/v0/management/plugins/test-scheduler/enabled', {'enabled': False}, 'PATCH')
             wait(lambda: message() == 'b-sooner', 'scheduler competition rollback')
-            failures.add('b-sooner')
-            assert message() == 'c-third', 'upstream failure did not retry next account'
+            # CPA must preserve tool definitions/outputs; the scheduler only
+            # chooses credentials, never rewrites the protocol payload.
+            raw = api('/v1/responses', {'model':MODEL, 'input':[
+                {'type':'function_call','call_id':'synthetic-call','name':'echo','arguments':'{}'},
+                {'type':'function_call_output','call_id':'synthetic-call','output':'OK'}],
+                'tools':[{'type':'function','name':'echo','parameters':{'type':'object','properties':{}}}],
+                'stream':False}, management=False)
+            assert json.loads(raw)['status']=='completed'
+            assert upstream_requests[-1]['tools'][0]['name']=='echo'
+            assert any(item.get('type')=='function_call_output' for item in upstream_requests[-1]['input'])
+            conn=http.client.HTTPConnection('127.0.0.1',18318,timeout=5)
+            conn.request('POST','/v1/responses',json.dumps({'model':MODEL,'input':'QFR_CANCEL','stream':True}),
+                         {'Authorization':'Bearer synthetic-client-key','Content-Type':'application/json'})
+            assert cancellation_started.wait(5), 'cancel request did not reach fixture'
+            conn.close()
+            assert message()=='b-sooner', 'client cancellation harmed subsequent routing'
+            for code in [500, 502, 503, 429, 401]:
+                failure_status=code
+                failures.add('b-sooner')
+                assert message() == 'c-third', f'upstream {code} did not retry next account'
+                failures.clear()
+                if code == 401:
+                    print('PASS 401 failover; CPA retains unauthorized state after verification, no automatic recovery claimed')
+                    break
+                # Explicit operator verification releases the synthetic failed account
+                # and proves recovery without waiting for provider-sized cooldowns.
+                verified=json.loads(api('/v8/management/credentials/verify', {'name':'b-sooner.json','model':MODEL}))
+                assert verified['verified'], verified
+                configure()
+                wait(lambda: message() == 'b-sooner', f'upstream {code} recovery', timeout=75)
             api(BASE + '/enabled', {'enabled': False}, 'PATCH')
             wait(lambda: message() == 'a-later', 'disable rollback')
             for account, (priority, _) in accounts.items():
@@ -306,7 +363,7 @@ plugins:
             print('PASS CPA 8.1.0: authenticated status, shadow, active, all-tier candidates, streaming, '
                   '24 concurrent requests, no request-path polling, five-hour/weekly exhaustion, '
                   'lower-tier failover, all-empty no upstream, recovery, rollover, unknown quota fallback, '
-                  '429 retry, pinning, model eligibility, disable/reenable filtering, competing scheduler precedence, '
+                  '500/502/503/429/401 failover, tool payloads, client cancellation, pinning, model eligibility, disable/reenable filtering, competing scheduler precedence, '
                   'disable rollback, priorities preserved, no token logging.')
             print('CPA SHA256:', hashlib.sha256(Path(args.cpa).read_bytes()).hexdigest())
         except BaseException:

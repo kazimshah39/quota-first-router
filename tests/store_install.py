@@ -22,6 +22,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('--cpa', required=True)
     p.add_argument('--output-library', required=True)
+    p.add_argument('--expected-version', default='0.1.1')
     args = p.parse_args()
     binary = str(Path(args.cpa).resolve())
     output = Path(args.output_library).resolve()
@@ -91,12 +92,12 @@ plugins:
             query = urllib.parse.urlencode({'source': entry['source_id']})
             install_path = '/v0/management/plugin-store/' + ID + '/install?' + query
             result = api(install_path, {})
-            assert result['version'] == '0.1.0', result
+            assert result['version'] == args.expected_version, result
             installed = Path(result['path'])
             assert installed.is_file() and installed.name.endswith('.so')
             api(base + '/config', {'enabled': True, 'priority': 100}, 'PATCH')
             status = wait(lambda: api(base + '/status'), 'shadow registration')
-            assert status['mode'] == 'shadow' and status['version'] == '0.1.0'
+            assert status['mode'] == 'shadow' and status['version'] == args.expected_version
             assert status['poll_interval'] == '1m0s' and status['max_age'] == '5m0s', status
             assert status['accounts'] == {}, 'Unexpected credentials in isolated instance'
             api(base + '/config', {'mode': 'active'}, 'PATCH')
@@ -110,10 +111,10 @@ plugins:
             proc = subprocess.Popen([binary, '--config', str(config), '--local-model'], cwd=root, stdout=log, stderr=subprocess.STDOUT)
             wait(lambda: api('/v0/management/plugins'), 'isolated restart')
             second = api(install_path, {})
-            assert second['version'] == '0.1.0'
+            assert second['version'] == args.expected_version
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_bytes(Path(second['path']).read_bytes())
-            print('PASS public registry discovery, real CPA checksum-verified install, 0.1.0 shadow defaults '
+            print(f'PASS public registry discovery, real CPA checksum-verified install, {args.expected_version} shadow defaults '
                   '(1m/5m), active/disable, isolated restart and same-version reinstall.')
             print('Installed artifact SHA256:', hashlib.sha256(output.read_bytes()).hexdigest())
         except BaseException:

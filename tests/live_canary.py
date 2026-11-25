@@ -49,8 +49,7 @@ def main():
     shutil.copyfile(config_path, backup / 'config.yaml')
     os.chmod(backup / 'config.yaml', 0o600)
     report = {'run_id': run_id, 'started_at': dt.datetime.now(dt.timezone.utc).isoformat(),
-              'backup_sha256': hashlib.sha256(config_path.read_bytes()).hexdigest(), 'model': args.model,
-              'artifact_sha256': hashlib.sha256((project / 'dist' / (PLUGIN + '.so')).read_bytes()).hexdigest()}
+              'backup_sha256': hashlib.sha256(config_path.read_bytes()).hexdigest(), 'model': args.model}
 
     def api(path, body=None, method=None, client=False, phase=''):
         req = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode(),
@@ -103,9 +102,12 @@ def main():
         return {'phase': phase, 'actual_auth_index': row[0], 'request_id': row[2], 'model': row[3], 'completed': True}
 
     try:
-        destination = Path(initial_plugins['plugins_dir']) / 'linux' / 'amd64' / (PLUGIN + '.so')
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(project / 'dist' / (PLUGIN + '.so'), destination)
+        # Validate an already installed artifact: copying over a mapped native
+        # library is unsafe even when the plugin has been disabled.
+        installed = next(p for p in initial_plugins['plugins'] if p['id'] == PLUGIN)
+        destination = Path(installed['path'])
+        assert destination.is_file(), 'Install a verified release before the canary'
+        report['artifact_sha256'] = hashlib.sha256(destination.read_bytes()).hexdigest()
         settings = {'enabled': True, 'priority': 100, 'mode': 'shadow', 'poll_interval': '1m', 'max_age': '5m', 'request_timeout': '10s'}
         global_proxy = original.get('requests', {}).get('proxy-url')
         if global_proxy:

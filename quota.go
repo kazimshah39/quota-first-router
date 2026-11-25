@@ -91,6 +91,13 @@ func parseCodexQuota(raw []byte, now time.Time) (quotaSnapshot, error) {
 	if len(windows) == 0 {
 		return quotaSnapshot{}, errors.New("invalid_codex_windows")
 	}
+	for _, keys := range [][]string{{"allowed"}, {"limit_reached", "limitReached"}} {
+		if v, exists := fieldValue(rate, keys...); exists && v != nil {
+			if _, ok := v.(bool); !ok {
+				return quotaSnapshot{}, errors.New("invalid_codex_rate_limit")
+			}
+		}
+	}
 	// A global denial must not be lost if the response has no exhausted window.
 	allowed, ha := boolValue(rate, "allowed")
 	reached, hr := boolValue(rate, "limit_reached", "limitReached")
@@ -99,13 +106,44 @@ func parseCodexQuota(raw []byte, now time.Time) (quotaSnapshot, error) {
 		used := 100.0
 		s.Windows = append(s.Windows, quotaWindow{Utilization: &used, ResetsAt: latestReset(windows)})
 	}
-	if additional, ok := doc["additional_rate_limits"].([]any); ok {
+	if spend, ok := mapValue(doc, "spend_control", "spendControl"); ok {
+		if reached, _ := boolValue(spend, "reached"); reached {
+			used := 100.0
+			s.Windows = append(s.Windows, quotaWindow{Utilization: &used})
+		}
+	}
+	additionalRaw, hasAdditional := fieldValue(doc, "additional_rate_limits", "additionalRateLimits")
+	var additional []any
+	if hasAdditional && additionalRaw != nil {
+		switch values := additionalRaw.(type) {
+		case []any:
+			additional = values
+		case map[string]any:
+			for name, value := range values {
+				m, ok := value.(map[string]any)
+				if !ok {
+					return quotaSnapshot{}, errors.New("invalid_model_windows")
+				}
+				copied := make(map[string]any, len(m)+1)
+				for k, v := range m {
+					copied[k] = v
+				}
+				if stringValue(copied, "limit_name", "limitName") == "" {
+					copied["limit_name"] = name
+				}
+				additional = append(additional, copied)
+			}
+		default:
+			return quotaSnapshot{}, errors.New("invalid_model_windows")
+		}
+	}
+	if len(additional) > 0 {
 		for _, v := range additional {
 			m, ok := v.(map[string]any)
 			if !ok {
 				return quotaSnapshot{}, errors.New("invalid_model_windows")
 			}
-			name := strings.ToLower(stringValue(m, "limit_name", "metered_feature", "id"))
+			name := strings.ToLower(strings.TrimSpace(stringValue(m, "normal_model_slug", "normalModelSlug", "limit_name", "limitName", "metered_feature", "id")))
 			if name == "" {
 				continue
 			}
@@ -113,9 +151,16 @@ func parseCodexQuota(raw []byte, now time.Time) (quotaSnapshot, error) {
 			if !exists {
 				r = m
 			}
+			for _, keys := range [][]string{{"allowed"}, {"limit_reached", "limitReached"}} {
+				if v, exists := fieldValue(r, keys...); exists && v != nil {
+					if _, ok := v.(bool); !ok {
+						return quotaSnapshot{}, errors.New("invalid_model_windows")
+					}
+				}
+			}
 			var list []quotaWindow
-			for i, key := range []string{"primary_window", "secondary_window"} {
-				wr, exists := mapValue(r, key)
+			for i, keys := range [][3]string{{"primary_window", "primaryWindow", "primary"}, {"secondary_window", "secondaryWindow", "secondary"}} {
+				wr, exists := mapValue(r, keys[:]...)
 				if !exists {
 					continue
 				}
@@ -126,12 +171,12 @@ func parseCodexQuota(raw []byte, now time.Time) (quotaSnapshot, error) {
 				list = append(list, w)
 			}
 			a, ha := boolValue(r, "allowed")
-			l, hl := boolValue(r, "limit_reached")
+			l, hl := boolValue(r, "limit_reached", "limitReached")
 			if (ha && !a) || (hl && l) {
 				used := 100.0
 				list = append(list, quotaWindow{Utilization: &used, ResetsAt: latestReset(list)})
 			}
-			s.Models[name] = list
+			s.Models[name] = append(s.Models[name], list...)
 		}
 	}
 	return s, nil
@@ -150,6 +195,27 @@ func parseCodexWindow(raw map[string]any, now time.Time, position int) (quotaWin
 	used, ok := numberValue(raw, "used_percent", "usedPercent")
 	if !ok || math.IsNaN(used) || math.IsInf(used, 0) || used < 0 || used > 100 {
 		return quotaWindow{}, "", false
+	}
+	for _, keys := range [][]string{{"limit_window_seconds", "limitWindowSeconds"}, {"reset_at", "resetAt"}, {"reset_after_seconds", "resetAfterSeconds"}} {
+		if v, exists := fieldValue(raw, keys...); exists && v != nil {
+			n, ok := numberValue(raw, keys...)
+			if !ok || math.IsNaN(n) || math.IsInf(n, 0) || n < 0 || n > 1e12 {
+				return quotaWindow{}, "", false
+			}
+			if keys[0] == "reset_at" && n == 0 {
+				return quotaWindow{}, "", false
+			}
+			if keys[0] == "reset_after_seconds" && n > 2678400 {
+				return quotaWindow{}, "", false
+			}
+		}
+	}
+	for _, keys := range [][]string{{"allowed"}, {"limit_reached", "limitReached"}} {
+		if v, exists := fieldValue(raw, keys...); exists && v != nil {
+			if _, ok := v.(bool); !ok {
+				return quotaWindow{}, "", false
+			}
+		}
 	}
 	seconds, has := numberValue(raw, "limit_window_seconds", "limitWindowSeconds")
 	kind := "long"
@@ -179,49 +245,45 @@ func codexResetAt(raw map[string]any, now time.Time) (time.Time, bool) {
 	}
 	return time.Time{}, false
 }
-func mapValue(m map[string]any, keys ...string) (map[string]any, bool) {
-	for _, k := range keys {
-		for a, v := range m {
-			if strings.EqualFold(a, k) {
-				r, ok := v.(map[string]any)
-				return r, ok
+func fieldValue(m map[string]any, keys ...string) (any, bool) {
+	for _, key := range keys {
+		if value, ok := m[key]; ok {
+			return value, true
+		}
+	}
+	for _, key := range keys {
+		for actual, value := range m {
+			if strings.EqualFold(actual, key) {
+				return value, true
 			}
 		}
 	}
 	return nil, false
 }
+
+func mapValue(m map[string]any, keys ...string) (map[string]any, bool) {
+	v, _ := fieldValue(m, keys...)
+	r, ok := v.(map[string]any)
+	return r, ok
+}
 func stringValue(m map[string]any, keys ...string) string {
-	for _, k := range keys {
-		for a, v := range m {
-			if strings.EqualFold(a, k) {
-				r, _ := v.(string)
-				return r
-			}
+	for _, key := range keys {
+		v, _ := fieldValue(m, key)
+		if r, ok := v.(string); ok && strings.TrimSpace(r) != "" {
+			return r
 		}
 	}
 	return ""
 }
 func numberValue(m map[string]any, keys ...string) (float64, bool) {
-	for _, k := range keys {
-		for a, v := range m {
-			if strings.EqualFold(a, k) {
-				r, ok := v.(float64)
-				return r, ok
-			}
-		}
-	}
-	return 0, false
+	v, _ := fieldValue(m, keys...)
+	r, ok := v.(float64)
+	return r, ok
 }
 func boolValue(m map[string]any, keys ...string) (bool, bool) {
-	for _, k := range keys {
-		for a, v := range m {
-			if strings.EqualFold(a, k) {
-				r, ok := v.(bool)
-				return r, ok
-			}
-		}
-	}
-	return false, false
+	v, _ := fieldValue(m, keys...)
+	r, ok := v.(bool)
+	return r, ok
 }
 func (s quotaSnapshot) availability(model string, now time.Time, maxAge time.Duration) string {
 	if s.ReadAt.IsZero() || now.Before(s.ReadAt) || now.Sub(s.ReadAt) >= maxAge {
@@ -234,9 +296,9 @@ func (s quotaSnapshot) availability(model string, now time.Time, maxAge time.Dur
 	if s.FiveHour != nil {
 		windows = append(windows, *s.FiveHour)
 	}
-	model = strings.ToLower(model)
+	model = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(model)), "codex/")
 	for name, ws := range s.Models {
-		if model == name || strings.Contains(model, name) {
+		if model == name {
 			windows = append(windows, ws...)
 		}
 	}

@@ -2,13 +2,14 @@ package main
 
 import (
 	"errors"
+	"net/url"
 	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
 const pluginID = "quota-first-router"
-const pluginVersion = "0.1.0"
+const pluginVersion = "0.1.1"
 
 type config struct {
 	Mode           string        `yaml:"mode" json:"mode"`
@@ -38,6 +39,12 @@ func decodeConfig(raw []byte) (config, error) {
 	}
 	if cfg.RequestTimeout < time.Second || cfg.RequestTimeout > 30*time.Second {
 		return config{}, errors.New("request_timeout must be between 1s and 30s")
+	}
+	if cfg.ProxyURL != "" && cfg.ProxyURL != "direct" {
+		u, err := url.Parse(cfg.ProxyURL)
+		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "socks5" && u.Scheme != "socks5h") {
+			return config{}, errors.New("invalid proxy_url")
+		}
 	}
 	return cfg, nil
 }

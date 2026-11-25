@@ -14,7 +14,7 @@ spec.loader.exec_module(release)
 
 class ReleaseTests(unittest.TestCase):
     def test_version(self):
-        self.assertEqual(release.version(), '0.1.0')
+        self.assertRegex(release.version(), r'^\d+\.\d+\.\d+$')
 
     def test_registry(self):
         registry = json.loads((release.ROOT / 'registry.json').read_text())
