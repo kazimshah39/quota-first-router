@@ -29,7 +29,8 @@ jobs:
           tmp=$(mktemp -d)
           git archive HEAD | tar -x -C "$tmp"
           make -C "$tmp" GO=go test package
-          cmp dist/release/quota-first-router_0.1.0_linux_amd64.zip "$tmp/dist/release/quota-first-router_0.1.0_linux_amd64.zip"
+          version=$(make -s version)
+          cmp "dist/release/quota-first-router_${version}_linux_amd64.zip" "$tmp/dist/release/quota-first-router_${version}_linux_amd64.zip"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: linux-amd64-release
