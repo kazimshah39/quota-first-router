@@ -1,0 +1,15 @@
+# Merge only this plugin entry into your existing CPA configuration.
+# Never replace your whole production configuration with this example.
+plugins:
+  enabled: true
+  dir: /path/to/plugins
+  configs:
+    quota-first-router:
+      enabled: true
+      priority: 100
+      mode: shadow
+      poll_interval: 1m
+      max_age: 5m
+      request_timeout: 10s
+      # Mirror requests.proxy-url if CPA has a global proxy configured.
+      # proxy_url: http://127.0.0.1:8080

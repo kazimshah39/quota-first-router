@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "plugins": [
+    {
+      "id": "quota-first-router",
+      "name": "Quota First Router",
+      "description": "Routes Codex OAuth requests by account priority tier, preferring the nearest five-hour quota reset within the highest usable tier.",
+      "author": "kazimshah39",
+      "repository": "https://github.com/kazimshah39/quota-first-router",
+      "homepage": "https://github.com/kazimshah39/quota-first-router",
+      "license": "MIT",
+      "tags": ["Scheduler", "Quota", "Codex", "OAuth"],
+      "install": {
+        "type": "github-release"
+      }
+    }
+  ]
+}
