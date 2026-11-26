@@ -54,10 +54,17 @@ def main():
                 cmd=[certutil,'-f','-addstore','Root',str(cert)] if add else [certutil,'-delstore','Root',fingerprint]
             elif goos=='darwin':
                 keychain='/Library/Keychains/System.keychain'
-                cmd=['sudo','-n','security','add-trusted-cert','-d','-r','trustRoot','-k',keychain,str(cert)] if add else ['sudo','-n','security','delete-certificate','-t','-Z',fingerprint,keychain]
+                cmd=['sudo','-n','security','add-trusted-cert','-d','-r','trustRoot','-k',keychain,str(cert)] if add else ['sudo','-n','security','delete-certificate','-Z',fingerprint,keychain]
             else:return
             print('Native trust', 'add' if add else 'remove',goos,flush=True)
             subprocess.run(cmd,check=True,capture_output=True,timeout=30)
+            if not add and goos=='darwin':
+                # -t/remove-trusted-cert hangs on hosted macOS (runner-images
+                # issue 12116). Delete the exact certificate and prove it is
+                # absent; this disposable VM is destroyed after the job.
+                remaining=subprocess.check_output(['security','find-certificate','-a','-Z',keychain],text=True,timeout=30)
+                assert fingerprint not in remaining,'Temporary CA still present'
+                print('PASS temporary system CA removed',flush=True)
         class Fixture(http.server.BaseHTTPRequestHandler):
             def log_message(self,*_):pass
             def answer(self,code,value,content='application/json'):
