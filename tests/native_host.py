@@ -43,15 +43,19 @@ def main():
     trust_added=False;proc=None;servers=[];accounts={'a':(20,120),'b':(20,20),'c':(10,10)};exhausted=set();polls=[];messages=[];stop=threading.Event()
     with tempfile.TemporaryDirectory(prefix='qfr-native-') as tmp:
         root=Path(tmp);cert=root/'cert.pem';key=root/'key.pem';serial=str(int(time.time_ns()))
-        subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-set_serial',serial,'-keyout',str(key),'-out',str(cert),'-subj','/CN=QFR Disposable Native Test '+serial,'-addext','subjectAltName=DNS:chatgpt.com','-addext','basicConstraints=critical,CA:TRUE'],check=True,capture_output=True)
+        cert_config=root/'openssl.cnf'
+        cert_config.write_text('[req]\ndistinguished_name=dn\nx509_extensions=extensions\nprompt=no\n[dn]\nCN=QFR Disposable Native Test '+serial+'\n[extensions]\nsubjectAltName=DNS:chatgpt.com\nbasicConstraints=critical,CA:TRUE\nkeyUsage=critical,digitalSignature,keyEncipherment,keyCertSign,cRLSign\nsubjectKeyIdentifier=hash\n')
+        subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-set_serial',serial,'-keyout',str(key),'-out',str(cert),'-config',str(cert_config)],check=True,capture_output=True,timeout=30)
+        print('PASS generated isolated TLS certificate',flush=True)
         fingerprint=subprocess.check_output(['openssl','x509','-in',str(cert),'-noout','-fingerprint','-sha1'],text=True).strip().split('=')[1].replace(':','')
         def trust(add):
-            if goos=='windows':cmd=['certutil','-user','-addstore','Root',str(cert)] if add else ['certutil','-user','-delstore','Root',fingerprint]
+            if goos=='windows':cmd=['certutil','-user','-f','-addstore','Root',str(cert)] if add else ['certutil','-user','-delstore','Root',fingerprint]
             elif goos=='darwin':
                 keychain=str(Path.home()/'Library/Keychains/login.keychain-db')
                 cmd=['security','add-trusted-cert','-r','trustRoot','-k',keychain,str(cert)] if add else ['security','remove-trusted-cert',str(cert)]
             else:return
-            subprocess.run(cmd,check=True,capture_output=True)
+            print('Native trust', 'add' if add else 'remove',goos,flush=True)
+            subprocess.run(cmd,check=True,capture_output=True,timeout=30)
             if not add and goos=='darwin':subprocess.run(['security','delete-certificate','-Z',fingerprint,str(Path.home()/'Library/Keychains/login.keychain-db')],check=True,capture_output=True)
         class Fixture(http.server.BaseHTTPRequestHandler):
             def log_message(self,*_):pass
@@ -139,10 +143,15 @@ def main():
             value=json.loads(raw);return value['choices'][0]['message']['content'] if chat else value['output'][0]['content'][0]['text']
         try:
             trust(True);trust_added=goos!='linux';proc=subprocess.Popen([str(cpa),'--config',str(configpath),'--local-model'],cwd=root,env=env,stdout=log,stderr=subprocess.STDOUT)
+            print('Native CPA started',flush=True)
             wait(lambda:json.loads(api('/v0/management/plugins')),'host startup')
+            print('PASS native host startup',flush=True)
+            print('Fetching local store catalog',flush=True)
             catalog=json.loads(api('/v0/management/plugin-store'));matches=[x for x in catalog['plugins'] if x['id']=='quota-first-router' and x['source_url']==source];assert matches, catalog.get('source_errors');entry=matches[0]
+            print('Installing exact native package',flush=True)
             installed=json.loads(api('/v0/management/plugin-store/quota-first-router/install?'+urllib.parse.urlencode({'source':entry['source_id']}),{}))
             assert hashlib.sha256(Path(installed['path']).read_bytes()).hexdigest()==hashlib.sha256(library.read_bytes()).hexdigest(),'Installer library differs'
+            print('Waiting for native plugin registration',flush=True)
             wait(lambda:ready('shadow'),'registration and polling')
             defaults=status();assert defaults['version']=='0.1.2' and defaults['poll_interval']=='1m0s' and defaults['max_age']=='5m0s',defaults
             listing=json.loads(api('/v0/management/plugins'));assert all(name in json.dumps(listing) for name in ('invalid-native-fixture','wrong-machine-fixture')),'Invalid fixtures were not scanned'

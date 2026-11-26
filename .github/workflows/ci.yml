@@ -86,7 +86,7 @@ jobs:
           ext=so; exe=cli-proxy-api
           if [ '${{ matrix.os }}' = darwin ]; then ext=dylib; fi
           if [ '${{ matrix.os }}' = windows ]; then ext=dll; exe=cli-proxy-api.exe; fi
-          python3 tests/native_host.py --disposable-native-runner --cpa "dist/cpa/$exe" --library "dist/native/quota-first-router.$ext" --archive "dist/release/quota-first-router_$(python3 scripts/release.py version)_${{ matrix.os }}_${{ matrix.arch }}.zip" --output 'dist/release/native-${{ matrix.os }}-${{ matrix.arch }}.json' --seconds 75
+          python3 -u tests/native_host.py --disposable-native-runner --cpa "dist/cpa/$exe" --library "dist/native/quota-first-router.$ext" --archive "dist/release/quota-first-router_$(python3 scripts/release.py version)_${{ matrix.os }}_${{ matrix.arch }}.zip" --output 'dist/release/native-${{ matrix.os }}-${{ matrix.arch }}.json' --seconds 75
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: native-${{ matrix.os }}-${{ matrix.arch }}
