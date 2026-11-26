@@ -44,4 +44,4 @@ Chrome DevTools browser testing verified plugin discovery, five declared fields,
 - Cancellation checks client disconnect and subsequent health, not a provider-side billing/refund or remote-abort guarantee.
 - No real quota was deliberately exhausted. Failure/exhaustion tests use network-isolated fixtures. Long-term daily reliability is not established by a ten-minute soak.
 - The native artifact can remain mapped after disable. The optional canary now requires an already installed library; deployments use new versioned files. Disposable-host restart/reinstall and live version switching are distinct tests.
-- Official-store PR #402 is closed; issue #1 remains open for six-platform coverage. The custom registry serves existing Linux releases. No claim of official listing or full-platform runtime acceptance is made.
+- Official-store PR #402 stays closed; issue #1 is resolved by the published six-native-target v0.1.2 release. New registry-only PR #404 awaits maintainer review. All six native results and public verification are recorded; official default-store listing is not claimed before merge.

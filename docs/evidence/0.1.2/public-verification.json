@@ -1,0 +1,55 @@
+{
+  "version": "0.1.2",
+  "at": "2026-11-26T09:25:10.034208+00:00",
+  "ci_run": 45787741456,
+  "release_run": 45789625479,
+  "release_url": "https://github.com/kazimshah39/quota-first-router/releases/tag/v0.1.2",
+  "public_downloads": {
+    "six_archives_plus_checksums": true,
+    "byte_identical_to_native_ci": true
+  },
+  "public_store_install": {
+    "passed": true,
+    "shadow_defaults": true,
+    "same_version_reinstall": true,
+    "library_sha256": "81e3bd5c4740b8d7cc6a7288e1f217e0632597178beae70910c5c360dc820527"
+  },
+  "public_installed_soak": {
+    "seconds": 120,
+    "requests": 1336,
+    "rss_kib_min": 74024,
+    "rss_kib_max": 78268,
+    "rss_kib_final": 77072,
+    "passed": true
+  },
+  "production": {
+    "version": "0.1.2",
+    "mode": "active",
+    "accounts": 9,
+    "poll_interval": "1m0s",
+    "max_age": "5m0s",
+    "worker_failed": false,
+    "live_matrix_passed": 26,
+    "live_matrix_total": 26,
+    "uncontended_independent_order_attribution_tool_checks": 6,
+    "natural_observation_elapsed": 180.36229656916112,
+    "successful_distinct_snapshots_per_account": [
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3
+    ],
+    "tiers_disabled_flags_and_unrelated_config_preserved": true,
+    "prior_libraries_preserved": true,
+    "shared_service_restarted": false,
+    "mapped_library_overwritten": false
+  },
+  "monitoring": "paused, excluded, original checksums preserved",
+  "store_pr": 404,
+  "official_store_acceptance": "pending maintainer merge"
+}

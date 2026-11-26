@@ -46,7 +46,7 @@ Set `GO=go` to use your installed Go. `make cpa` downloads CPA 8.1.0 and verifie
 
 **CPA 8.1.0: Linux, macOS and Windows, each amd64/arm64.** Version 0.1.2 provides all six native-tested packages. Linux requires glibc 2.34+; macOS binary deployment minimum is 13.0; Windows was tested on Server 2025 amd64 and Windows 11 ARM64. See [platform support](docs/platform-support.md) for precise tested/runtime limits. Older v0.1.0/v0.1.1 releases remain Linux-amd64 only.
 
-Official-store PR **#402 is closed** for missing platform coverage; issue **#1 is open**. Full-platform native verification now passes; publication/store-submission state is tracked in [release status](docs/release-status.md). To install from the author’s registry, add this custom registry source in CPA's configuration, keeping any existing sources:
+v0.1.2 is published with all six native-tested packages. Platform issue **#1 is resolved**; the replacement registry-only store PR **#404 is awaiting maintainer review**. Earlier #402 stays closed. Official listing is not claimed before merge; details are in [release status](docs/release-status.md). To install from the author’s registry, add this custom registry source in CPA's configuration, keeping any existing sources:
 
 ```yaml
 plugins:
