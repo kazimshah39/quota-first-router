@@ -26,7 +26,7 @@ async function main() {
   const document = { hidden:false,documentElement:new Element(),createElement:tag=>new Element(tag),getElementById:element,addEventListener(type,fn){this[type]=fn;} };
   const context = { document, URL, Uint8Array, TextEncoder, TextDecoder, atob, AbortController, Date, JSON, console,
     localStorage:{getItem(){return null;},setItem(){writes++;}}, location:{origin:'http://fixture',host:'fixture'},
-    MutationObserver:class {observe(){observations++;}}, matchMedia:()=>({matches:color==='dark'}),
+    MutationObserver:class {observe(){observations++;}}, matchMedia:()=>({get matches(){return color==='dark';},addEventListener(type,fn){document.themeChange=fn;}}),
     setTimeout(fn,delay){timers.set(++nextTimer,{fn,delay});return nextTimer;},
     clearTimeout(id){timers.delete(id);},
     fetch(url,options){return new Promise(resolve=>requests.push({url,options,resolve}));},
@@ -35,9 +35,8 @@ async function main() {
   vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../web/monitor.js'),'utf8'),context);
   assert.equal(observations,0,'standalone must not observe itself');
   assert.equal(document.documentElement.dataset.theme,'dark');
-  element('theme').click(); element('theme').click(); element('theme').click();
-  color='light';element('theme').click();element('theme').click();element('theme').click();
-  assert.equal(document.documentElement.dataset.theme,'light','auto follows system, not previous self theme');
+  color='light';document.themeChange();
+  assert.equal(document.documentElement.dataset.theme,'light','follows browser preference');
   const submit=key=>{element('key').value=key;element('login').handlers.submit({preventDefault(){}});};
   const tick=()=>new Promise(resolve=>setImmediate(resolve));
   submit('secret');assert.equal(requests.length,1);assert.equal(element('key').value,'');
@@ -47,10 +46,11 @@ async function main() {
   requests[0].resolve({ok:true,status:200,json:async()=>snapshot});await tick();
   assert.equal(element('private').hidden,true,'late response must not restore logged-out diagnostics');
   assert.equal(element('history-note').textContent,'');
-  const quota = {plan_type:'plus',five_hour:{utilization:20},seven_day:{utilization:62},model_windows:{'gpt-example':[{utilization:100}]}};
-  const populated = {...snapshot, total_accounts:4, fresh_accounts:3, history:{...snapshot.history, decisions:[{model:'gpt-example', decision:{auth_id:'primary', candidates:[{auth_id:'primary', priority:20, reason:'ready'}]}}]}, accounts:[
+  const now=Date.parse(snapshot.server_time), after=minutes=>new Date(now+minutes*60000).toISOString();
+  const quota = {plan_type:'plus',five_hour:{utilization:20,resets_at:after(19)},seven_day:{utilization:62,resets_at:after(2*1440+4*60)},model_windows:{'gpt-example':[{utilization:100,resets_at:after(-1)}]}};
+  const populated = {...snapshot, total_accounts:4, fresh_accounts:3, history:{...snapshot.history, decisions:[{model:'gpt-example', at:snapshot.server_time, sequence:1, decision:{auth_id:'primary', candidates:[{auth_id:'primary', priority:20, reason:'ready'}]}}]}, accounts:[
     {id:'primary', availability:'ready', quota},
-    {id:'cached', availability:'stale', quota:{five_hour:{utilization:0}}},
+    {id:'cached', availability:'stale', quota:{five_hour:{utilization:0,resets_at:after(131)}}},
     {id:'monthly', availability:'ready', quota:{five_hour_absent:true,seven_day:{utilization:76}}},
     {id:'unread', availability:'unknown'},
   ]};
@@ -63,7 +63,13 @@ async function main() {
   assert.doesNotMatch(list.children[2].textContent,/5 hours/);
   assert.match(list.children[0].textContent,/Selected/);
   assert.doesNotMatch(list.children[0].textContent,/Quota usable|Last offered/);
-  assert.equal(element('health-note').hidden,true);
+  assert.match(list.textContent,/19m left/);
+  assert.match(list.textContent,/2h 11m left/);
+  assert.match(list.textContent,/2d 4h left/);
+  assert.match(list.textContent,/Waiting for reset check/);
+  assert.equal(element('model-filter').hidden,true);
+  assert.equal(element('signout').hidden,false);
+  assert.equal(element('activity').children.length,1,'latest selection is not rendered twice');
   assert.equal(element('history-note').hidden,true);
   const details=list.findAll('details');
   assert.equal(details.every(detail=>detail.open===false),true);
@@ -90,11 +96,19 @@ async function main() {
   assert.equal(list.children[1].findAll('span').find(el=>el.className==='quota-alert').attributes['aria-label'],'Quota exhausted');
   assert.doesNotMatch(list.children[1].textContent,/Quota exhausted/);
   list.findAll('details')[1].open=true;
-  element('refresh').click();requests[4].resolve({ok:true,status:200,json:async()=>named});await tick();
+  const history={...named.history,decisions:[...named.history.decisions,...Array.from({length:7},(_,i)=>({model:'another-model',sequence:i+2,at:after(i),decision:{reason:`fixture_reason_${i===6?5:i}`}}))],incidents:[{kind:'quota',code:'quota_http_503',at:after(-2),last_at:after(8),sequence:1,account:named.accounts[0].id}]};
+  element('refresh').click();requests[4].resolve({ok:true,status:200,json:async()=>({...named,history})});await tick();
   assert.deepEqual(list.findAll('details').map(detail=>detail.open), [false,true,false,false], 'same email must not merge disclosure state');
+  const activity=element('activity');
+  assert.equal(activity.children.length,6);
+  assert.equal(activity.children[0].dataset.kind,'issue','sort coalesced incidents by latest occurrence');
+  assert.equal(element('model-filter').hidden,false);
+  assert.match(activity.children[1].textContent,/×2/,'consecutive identical routing decisions are grouped');
+  element('activity-more').click();assert.equal(activity.children.length,8);
+  element('activity-more').click();assert.equal(activity.children.length,6);
   element('refresh').click();requests[5].resolve({ok:false,status:403});await tick();
   assert.equal(list.findAll('progress').length,0,'forbidden removes previous quota indicators');
-  assert.equal(element('private').hidden,true);assert.equal(element('history-note').textContent,'');assert.equal(element('model').textContent,'Latest selection');
+  assert.equal(element('private').hidden,true);assert.equal(element('history-note').textContent,'');assert.equal(element('model').textContent,'Latest model');assert.equal(element('activity').children.length,0);
   assert.equal(writes,0,'must not persist entered key');
   submit('secret');document.hidden=true;document.visibilitychange();assert.equal(requests[6].options.signal.aborted,true,'hidden page aborts');
   document.hidden=false;document.visibilitychange();

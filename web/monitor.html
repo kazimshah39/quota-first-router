@@ -3,50 +3,43 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Quota First Router · Monitor</title>
+  <title>Quota First Router · Routing monitor</title>
   <link rel="stylesheet" href="monitor.css">
   <script src="monitor.js" defer></script>
 </head>
 <body><main>
   <header class="page-head">
-    <div><h1>Routing monitor</h1><p id="connection" role="status">Loading monitor…</p></div>
-    <div class="toolbar">
-      <button id="refresh">Refresh now</button>
-      <details class="options"><summary>Options</summary><div class="option-panel"><button id="theme">Theme: auto</button><button id="signout">Forget key</button></div></details>
+    <div class="heading">
+      <h1>Account quota</h1>
+      <span id="health" hidden></span>
+    </div>
+    <div class="toolbar" id="toolbar" hidden>
+      <input id="search" type="search" placeholder="Find account" aria-label="Find account">
+      <label id="model-filter" hidden><span class="sr-only">Model</span><select id="model"><option value="">Latest model</option></select></label>
+      <button id="refresh" title="Reload cached quota readings">Refresh</button>
     </div>
   </header>
+  <div class="status-line">
+    <p id="connection" role="status">Loading monitor…</p>
+    <button id="signout" class="quiet-button" hidden>Forget key</button>
+  </div>
   <form id="login" class="panel" hidden>
-    <h2>Connect to management</h2>
-    <p class="muted">Your key stays in memory for this tab only.</p>
     <label for="key">Management key</label>
     <div class="login-controls"><input id="key" type="password" autocomplete="current-password" required><button>Connect</button></div>
   </form>
   <div id="private" hidden>
-    <section class="health panel" aria-label="Health summary">
-      <div class="health-status"><h2 id="health">Starting</h2><p id="health-note" class="muted"></p></div>
-      <dl id="summary"></dl>
-    </section>
-    <section class="quota-section" aria-labelledby="account-heading">
-      <div class="section-head">
-        <h2 id="account-heading">Account quota</h2>
-        <div class="filters">
-          <label>Find account<input id="search" type="search" placeholder="Email or account name"></label>
-          <label>Model<select id="model"><option value="">Latest selection</option></select></label>
-        </div>
-      </div>
-      <p id="order-note" class="muted order-note"></p>
-      <p id="coverage" class="warning" hidden></p>
-      <div id="accounts" class="accounts"></div>
-    </section>
-    <details class="panel history-panel">
+    <p id="coverage" class="warning small" hidden></p>
+    <div id="accounts" class="accounts"></div>
+    <details class="history-panel" id="routing-activity">
       <summary>Routing activity <span id="activity-count" class="muted"></span></summary>
       <div class="activity-body">
-        <section><h2>Latest routing decision</h2><p id="latest"></p><p class="muted">To see which account served the request, check Request Events.</p></section>
-        <div class="history-grid">
-          <section><h2>Problems &amp; recoveries</h2><ol id="incidents" class="history"></ol></section>
-          <section><h2>Recent scheduler decisions</h2><ol id="decisions" class="history"></ol></section>
+        <ol id="activity" class="activity"></ol>
+        <p id="activity-empty" class="muted small" hidden>No recent activity.</p>
+        <div class="activity-foot">
+          <p class="muted small">See Request Events for the account that served a request.</p>
+          <button id="activity-more" class="quiet-button" aria-controls="activity" aria-expanded="false" hidden>Show more</button>
         </div>
-        <p id="history-note" class="muted"></p>
+        <p id="history-note" class="muted small" hidden></p>
       </div>
     </details>
   </div>
