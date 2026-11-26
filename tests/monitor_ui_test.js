@@ -70,13 +70,20 @@ async function main() {
   element('refresh').click();requests[2].resolve({ok:true,status:200,json:async()=>populated});await tick();
   assert.equal(list.findAll('details')[0].open,true,'auto-refresh must not close expanded account');
   const named = {...populated, accounts:[
-    {id:'codex-9router-527e014a-alex+work@example.test.json', availability:'ready', quota},
-    {id:'codex-abcd1234-alex+work@example.test.json', availability:'ready', quota},
+    {id:'codex-9router-527e014a-alex+work@example.test.json', availability:'exhausted', quota, priority:0},
+    {id:'codex-abcd1234-different@example.test-plus.json', email:'alex+work@example.test', availability:'ready', quota, priority:10},
     {id:'codex-12345678-non-email.json', availability:'unknown'},
-    {id:'user-name@example.test.json', availability:'unknown'},
+    {id:'codex-aabb1234-user-name@example.test-plus.json', availability:'unknown', priority:20},
   ]};
   element('refresh').click();requests[3].resolve({ok:true,status:200,json:async()=>named});await tick();
-  assert.deepEqual(list.findAll('h3').map(title=>title.textContent), ['codex-12345678-non-email.json','alex+work@example.test','alex+work@example.test','user-name@example.test']);
+  assert.deepEqual(list.findAll('h3').map(title=>title.textContent), ['codex-12345678-non-email.json','alex+work@example.test','user-name@example.test','alex+work@example.test']);
+  assert.doesNotMatch(list.textContent,/Tier unknown/);
+  assert.match(list.children[1].textContent,/Tier 0/);
+  assert.match(list.children[2].textContent,/Tier 20/);
+  assert.match(list.children[3].textContent,/Tier 10/);
+  assert.equal(list.children[1].dataset.exhausted,'true');
+  assert.equal(list.children[1].findAll('span').find(el=>el.className==='quota-alert').attributes['aria-label'],'Quota exhausted');
+  assert.doesNotMatch(list.children[1].textContent,/Quota exhausted/);
   list.findAll('details')[1].open=true;
   element('refresh').click();requests[4].resolve({ok:true,status:200,json:async()=>named});await tick();
   assert.deepEqual(list.findAll('details').map(detail=>detail.open), [false,true,false,false], 'same email must not merge disclosure state');

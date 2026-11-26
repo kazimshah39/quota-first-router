@@ -4,7 +4,9 @@ import (
 	"embed"
 	"encoding/json"
 	"net/http"
+	"net/mail"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
@@ -19,6 +21,8 @@ const monitorAccountLimit = 1000
 
 type monitorAccount struct {
 	ID                    string         `json:"id"`
+	Email                 string         `json:"email,omitempty"`
+	Priority              *int           `json:"priority,omitempty"`
 	Index                 string         `json:"auth_index"`
 	Error                 string         `json:"last_error,omitempty"`
 	Failures              int            `json:"consecutive_failures"`
@@ -58,7 +62,7 @@ func (e *engine) monitor() monitorSnapshot {
 	sort.Strings(ids)
 	for _, id := range ids[:min(len(ids), monitorAccountLimit)] {
 		a := e.states[id]
-		s.Accounts = append(s.Accounts, monitorAccount{ID: id, Index: a.Index, Error: a.LastError, Failures: a.Failures, NextRefresh: a.NextRefresh, Quota: a.Snapshot, Availability: "unknown"})
+		s.Accounts = append(s.Accounts, monitorAccount{ID: id, Email: a.Email, Priority: a.Priority, Index: a.Index, Error: a.LastError, Failures: a.Failures, NextRefresh: a.NextRefresh, Quota: a.Snapshot, Availability: "unknown"})
 	}
 	e.mu.RUnlock()
 	// Quota snapshots are immutable after publication by refreshQuota. Copy and
@@ -94,6 +98,20 @@ func (e *engine) monitor() monitorSnapshot {
 		s.State = "failed"
 	}
 	return s
+}
+
+// Only accept a bounded, plain mailbox from CPA's roster. Never expose the
+// credential's other metadata or attempt to infer a mailbox from its tokens.
+func monitorEmail(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 512 || safeLabel(value) != value {
+		return ""
+	}
+	addr, err := mail.ParseAddress(value)
+	if err != nil || addr.Name != "" || addr.Address != value {
+		return ""
+	}
+	return value
 }
 
 // Bound provider-supplied model labels/windows independently of routing data.

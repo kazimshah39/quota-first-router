@@ -41,24 +41,50 @@
   reading.append(bar, node('span', countdown(q.resets_at, now), 'quota-caption'));
   return reading;
  }
- function accountTitle(id) {
-  // Strip only known Codex filename prefixes and only when the rest is an email.
-  const email = id.replace(/\.json$/i, '').replace(/^codex-(?:9router-)?[0-9a-f]{8}-/i, '');
-  return /^[\w.!#$%&'*+\/=?^_`{|}~-]+@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]+$/i.test(email) ? email : id;
+ function accountTitle(a) {
+  if (a.email) return a.email;
+  // Older snapshots may only have the file name, including Codex's plan suffix.
+  const id = a.id;
+  const stem = id.replace(/\.json$/i, '');
+  const prefix = /^codex-(?:(?:9router-)?[0-9a-f]{8}-)?/i;
+  const candidate = prefix.test(stem) ? stem.replace(prefix, '').replace(/-(?:free|plus|pro|team|business|enterprise|edu)$/i, '') : stem;
+  return /^[\w.!#$%&'*+\/=?^_`{|}~-]+@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]+$/i.test(candidate) ? candidate : id;
+ }
+ const modelKey = model => (model || '').trim().toLowerCase().replace(/^codex\//, '');
+ function exhaustedFor(a, model, now) {
+  if (a.availability === 'exhausted') return true;
+  if (a.availability === 'stale') return false;
+  const key = modelKey(model);
+  return Boolean(key && a.quota?.model_windows?.[key]?.some(w => w.utilization >= 100 && (!w.resets_at || Date.parse(w.resets_at) > now)));
  }
  function renderAccount(a, note, record, now, expanded) {
   const account = node('article', undefined, 'account');
   account.dataset.accountId = a.id;
   const heading = node('header', undefined, 'account-head');
   const identity = node('div');
-  const title = node('h3', accountTitle(a.id));
-  const state = a.availability === 'ready' ? '' : ` · ${reason(a.availability)}`;
-  identity.append(title, node('p', (note ? `Tier ${note.priority}` : 'Tier unknown') + state, 'account-meta'));
+  const title = node('h3', accountTitle(a));
+  const exhausted = exhaustedFor(a, record?.model, now);
+  const priority = note?.priority ?? a.priority;
+  const meta = [];
+  if (Number.isInteger(priority)) meta.push(`Tier ${priority}`);
+  if (!exhausted && a.availability !== 'ready' && a.availability !== 'unknown') meta.push(reason(a.availability));
+  identity.append(title);
+  if (meta.length) identity.append(node('p', meta.join(' · '), 'account-meta'));
   heading.append(identity);
+  const markers = node('div', undefined, 'account-markers');
   if (note && record.decision.auth_id === a.id) {
    account.dataset.selected = 'true';
-   heading.append(node('span', record.mode === 'active' ? 'Selected' : 'Would select', 'badge'));
+   markers.append(node('span', record.mode === 'active' ? 'Selected' : 'Would select', 'badge'));
   }
+  if (exhausted) {
+   account.dataset.exhausted = 'true';
+   const warning = node('span', '!', 'quota-alert');
+   warning.title = 'Quota exhausted';
+   warning.setAttribute('role', 'img');
+   warning.setAttribute('aria-label', warning.title);
+   markers.append(warning);
+  }
+  if (markers.children.length) heading.append(markers);
   const quota = node('div', undefined, 'quota-grid');
   const stale = ['stale', 'reset_pending_refresh'].includes(a.availability);
   if (!a.quota?.five_hour_absent) quota.append(quotaReading(a.quota?.five_hour, now, '5 hours', stale));
@@ -66,7 +92,7 @@
   const extra = node('details', undefined, 'account-extra');
   extra.open = expanded;
   extra.append(node('summary', a.last_error ? 'Polling error · details' : 'Details', a.last_error ? 'warning' : ''));
-  if (note?.reason && note.reason !== 'ready' && note.reason !== a.availability) {
+  if (note?.reason && note.reason !== 'ready' && note.reason !== a.availability && !(exhausted && note.reason === 'exhausted')) {
    extra.append(node('p', `At last decision: ${reason(note.reason)}`, 'detail'));
   }
   extra.append(node('p', `Last read: ${age(a.quota?.read_at, now)} · Next attempt: ${stamp(a.next_refresh)}`, 'detail'));
@@ -75,7 +101,7 @@
   if (a.quota_details_truncated) extra.append(node('p', `${a.quota_details_truncated} quota details omitted by safety limits.`, 'warning'));
   const windows = node('div', undefined, 'quota-grid');
   for (const window of a.quota?.other_windows || []) windows.append(quotaReading(window, now, 'Other limit', stale));
-  const modelFilter = selectedModel.trim().toLowerCase().replace(/^codex\//, '');
+  const modelFilter = modelKey(selectedModel);
   for (const [model, list] of Object.entries(a.quota?.model_windows || {})) {
    if (modelFilter && model !== modelFilter) continue;
    for (const window of list) windows.append(quotaReading(window, now, model, stale));
@@ -93,7 +119,7 @@
   $('order-note').textContent = record ? `Tier order at ${stamp(record.at)} · ${record.model || 'Unknown model'}` : 'Tier order appears after the first request.';
   $('coverage').hidden = !(data.accounts_truncated || record?.truncated);
   $('coverage').textContent = `${data.accounts_truncated||0} accounts and ${record?.truncated||0} candidate details omitted by safety limits.`;
-  const search=$('search').value.toLowerCase();const accounts=[...data.accounts].filter(a=>a.id.toLowerCase().includes(search));accounts.sort((a,b)=>{const x=notes.get(a.id),y=notes.get(b.id);if(!x&&!y)return a.id.localeCompare(b.id);if(!x)return 1;if(!y)return -1;return y.priority-x.priority||(x.five_hour_reset?Date.parse(x.five_hour_reset):Infinity)-(y.five_hour_reset?Date.parse(y.five_hour_reset):Infinity)||a.id.localeCompare(b.id);});
+  const search=$('search').value.toLowerCase();const accounts=data.accounts.filter(a=>a.id.toLowerCase().includes(search)||accountTitle(a).toLowerCase().includes(search));accounts.sort((a,b)=>{const x=notes.get(a.id),y=notes.get(b.id);if(!x&&!y)return a.id.localeCompare(b.id);if(!x)return 1;if(!y)return -1;return y.priority-x.priority||(x.five_hour_reset?Date.parse(x.five_hour_reset):Infinity)-(y.five_hour_reset?Date.parse(y.five_hour_reset):Infinity)||a.id.localeCompare(b.id);});
   const list = $('accounts');
   const expanded = new Set([...list.children].filter(card => card.querySelector('details')?.open).map(card => card.dataset.accountId));
   const focusedSummary = document.activeElement;

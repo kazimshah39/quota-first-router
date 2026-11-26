@@ -61,8 +61,11 @@ button[aria-pressed="true"] { background: var(--selected); color: var(--selected
 .accounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 325px), 1fr)); gap: 10px; margin-top: 12px; align-items: start; }
 .account { min-width: 0; padding: 13px 14px; }
 .account[data-selected="true"] { background: var(--selected); }
+.account[data-exhausted="true"] { border-color: var(--red); }
 .account-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .account-head > div { min-width: 0; }
+.account-markers { display: flex; flex: none; align-items: center; gap: 6px; }
+.quota-alert { display: grid; place-items: center; width: 18px; height: 18px; color: var(--red); border: 1px solid currentColor; border-radius: 50%; font-size: 12px; font-weight: 700; }
 .account-meta { color: var(--muted); font-size: 12px; }
 .badge { flex: none; border-radius: 12px; background: var(--selected); color: var(--selected-ink); font-size: 11px; padding: 2px 7px; white-space: nowrap; }
 .quota-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; margin-top: 11px; }

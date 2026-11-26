@@ -237,6 +237,28 @@ func TestMonitorAccountQuotaAndResponseBounds(t *testing.T) {
 	}
 }
 
+func TestMonitorUsesRosterEmailAndPriority(t *testing.T) {
+	cfg, _ := decodeConfig(nil)
+	h := &fakeHost{entries: []pluginapi.HostAuthFileEntry{
+		{ID: "codex-1234abcd-old@example.test-plus.json", AuthIndex: "1", Provider: "codex", Email: "new+tag@example.test", Priority: 0},
+		{ID: "bad-label.json", AuthIndex: "2", Provider: "codex", Email: "Name <other@example.test>", Priority: -5},
+	}}
+	e := newEngine(h, &fakeFetcher{}, cfg)
+	e.refreshQuota(context.Background())
+	snapshot := e.monitor()
+	bad, good := snapshot.Accounts[0], snapshot.Accounts[1]
+	if good.Email != "new+tag@example.test" || good.Priority == nil || *good.Priority != 0 || bad.Email != "" || bad.Priority == nil || *bad.Priority != -5 || len(snapshot.History.Decisions) != 0 {
+		t.Fatal("monitor must report validated roster metadata before traffic")
+	}
+	raw, err := json.Marshal(e.status())
+	var legacy struct {
+		Accounts map[string]map[string]json.RawMessage
+	}
+	if err != nil || json.Unmarshal(raw, &legacy) != nil || legacy.Accounts[good.ID]["email"] != nil || legacy.Accounts[good.ID]["priority"] != nil {
+		t.Fatal("status API must not gain roster metadata", err)
+	}
+}
+
 func BenchmarkRecordedPick(b *testing.B) {
 	cfg, _ := decodeConfig([]byte("mode: active"))
 	e := newEngine(&fakeHost{}, &fakeFetcher{}, cfg)

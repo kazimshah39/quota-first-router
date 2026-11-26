@@ -25,6 +25,8 @@ type accountState struct {
 	Index       string         `json:"auth_index"`
 	Provider    string         `json:"provider"`
 	Stamp       string         `json:"-"`
+	Email       string         `json:"-"`
+	Priority    *int           `json:"-"`
 	Snapshot    *quotaSnapshot `json:"quota,omitempty"`
 	LastError   string         `json:"last_error,omitempty"`
 	NextRefresh time.Time      `json:"next_refresh"`
@@ -99,6 +101,9 @@ func (e *engine) refreshQuota(ctx context.Context) {
 		if state.Index != entry.AuthIndex || state.Provider != provider || state.Stamp != stamp {
 			state = accountState{Index: entry.AuthIndex, Provider: provider, Stamp: stamp}
 		}
+		state.Email = monitorEmail(entry.Email)
+		priority := entry.Priority
+		state.Priority = &priority
 		e.states[entry.ID] = state
 	}
 	for id := range e.states {
