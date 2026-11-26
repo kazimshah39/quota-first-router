@@ -49,14 +49,16 @@ def main():
         print('PASS generated isolated TLS certificate',flush=True)
         fingerprint=subprocess.check_output(['openssl','x509','-in',str(cert),'-noout','-fingerprint','-sha1'],text=True).strip().split('=')[1].replace(':','')
         def trust(add):
-            if goos=='windows':cmd=['certutil','-user','-f','-addstore','Root',str(cert)] if add else ['certutil','-user','-delstore','Root',fingerprint]
+            if goos=='windows':
+                certutil=str(Path(os.environ['SystemRoot'])/'System32/certutil.exe')
+                cmd=[certutil,'-f','-addstore','Root',str(cert)] if add else [certutil,'-delstore','Root',fingerprint]
             elif goos=='darwin':
-                keychain=str(Path.home()/'Library/Keychains/login.keychain-db')
-                cmd=['security','add-trusted-cert','-r','trustRoot','-k',keychain,str(cert)] if add else ['security','remove-trusted-cert',str(cert)]
+                keychain='/Library/Keychains/System.keychain'
+                cmd=['sudo','-n','security','add-trusted-cert','-d','-r','trustRoot','-k',keychain,str(cert)] if add else ['sudo','-n','security','remove-trusted-cert','-d',str(cert)]
             else:return
             print('Native trust', 'add' if add else 'remove',goos,flush=True)
             subprocess.run(cmd,check=True,capture_output=True,timeout=30)
-            if not add and goos=='darwin':subprocess.run(['security','delete-certificate','-Z',fingerprint,str(Path.home()/'Library/Keychains/login.keychain-db')],check=True,capture_output=True)
+            if not add and goos=='darwin':subprocess.run(['sudo','-n','security','delete-certificate','-Z',fingerprint,'/Library/Keychains/System.keychain'],check=True,capture_output=True)
         class Fixture(http.server.BaseHTTPRequestHandler):
             def log_message(self,*_):pass
             def answer(self,code,value,content='application/json'):
