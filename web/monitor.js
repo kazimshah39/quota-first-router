@@ -12,24 +12,88 @@
  function age(value,now){return value?`${Math.max(0,Math.floor((now-Date.parse(value))/1000))}s ago`:'No successful refresh';}
  function inheritedKey(){try{let raw=localStorage.getItem('cli-proxy-auth');if(!raw)return '';if(raw.startsWith('enc::v2::')){const bytes=Uint8Array.from(atob(raw.slice(9)),c=>c.charCodeAt(0));const salt=new TextEncoder().encode('cli-proxy-api-webui::secure-storage|'+location.host);for(let i=0;i<bytes.length;i++)bytes[i]^=salt[i%salt.length];raw=new TextDecoder().decode(bytes);}const state=JSON.parse(raw).state;const base=new URL(state.apiBase||location.origin,location.origin);return base.origin===location.origin&&typeof state.managementKey==='string'?state.managementKey:'';}catch{return '';}}
  function setTheme(){let value=theme;try{if(value==='auto'&&parent!==window)value=parent.document.documentElement.dataset.theme||'';}catch{}if(!['light','dark'].includes(value))value=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(document.documentElement.dataset.theme!==value)document.documentElement.dataset.theme=value;}
- function disconnect(message){generation++;controller?.abort();key='';data=null;failures=0;selectedModel='';clearTimeout(timer);$('private').hidden=true;for(const id of ['summary','accounts','latest','incidents','decisions','health','health-note','order-note','coverage','history-note'])$(id).replaceChildren();$('model').replaceChildren(node('option','Latest selection'));$('model').firstChild.value='';$('search').value='';$('login').hidden=false;$('connection').textContent=message;$('connection').className='warning';}
+ function disconnect(message){generation++;controller?.abort();key='';data=null;failures=0;selectedModel='';clearTimeout(timer);$('private').hidden=true;for(const id of ['summary','accounts','latest','incidents','decisions','health','health-note','order-note','coverage','history-note','activity-count'])$(id).replaceChildren();$('model').replaceChildren(node('option','Latest selection'));$('model').firstChild.value='';$('search').value='';$('login').hidden=false;$('connection').textContent=message;$('connection').className='warning';}
  function schedule(){clearTimeout(timer);if(!paused&&!document.hidden&&key)timer=setTimeout(load,Math.min(60000,5000*2**Math.min(failures,4)));}
  async function load(){if(controller||!key||document.hidden)return;clearTimeout(timer);controller=new AbortController();const current=controller,epoch=generation,timeout=setTimeout(()=>current.abort(),10000);$('refresh').disabled=true;
   try{const response=await fetch(endpoint,{headers:{Authorization:'Bearer '+key},signal:controller.signal,cache:'no-store',credentials:'same-origin'});if(epoch!==generation||current.signal.aborted)return;if(response.status===401||response.status===403){disconnect('Management access was rejected. Connect again to continue.');return;}if(!response.ok)throw new Error(response.status===404?'Monitor unavailable. The plugin may be disabled or unloaded; check Plugin management.':`Monitor request failed (HTTP ${response.status}).`);const next=await response.json();if(epoch!==generation||current.signal.aborted)return;if(!next.history)throw new Error('Monitor is stopped or unavailable. Check Plugin management.');const reset=data&&data.history.epoch!==next.history.epoch;data=next;failures=0;render();$('connection').className='good';$('connection').textContent=(reset?'History reset after restart or reconfiguration. ':'')+`Updated ${new Date().toLocaleTimeString()}. ${paused?'Updates paused.':'Updates every 5 seconds while visible.'}`;$('private').hidden=false;$('login').hidden=true;}
   catch(error){if(epoch!==generation||current.signal.aborted&&(document.hidden||paused))return;failures++;$('connection').className='warning';$('connection').textContent=(data?'Displayed data is stale. ':'')+(error.name==='AbortError'?'Monitor request timed out.':error.message)+' Use Refresh now to retry.';}
   finally{clearTimeout(timeout);if(controller===current)controller=null;$('refresh').disabled=false;schedule();}
  }
- function quotaCell(q,now,title){const el=node('div');if(title)el.append(node('span',title,'detail'));if(!q||q.utilization===null||q.utilization===undefined){el.append(node('span','Not provided','detail'));return el;}el.append(node('strong',`${Math.round((100-q.utilization)*10)/10}% remaining`,'quota'));el.append(node('span',`${q.utilization}% used · ${countdown(q.resets_at,now)}`,'detail'));return el;}
+ function quotaReading(q, now, title, stale, unavailable='Not reported') {
+  const reading = node('div', undefined, 'quota-reading');
+  const heading = node('div', undefined, 'quota-line');
+  heading.append(node('span', title, 'quota-name'));
+  reading.append(heading);
+  if (!Number.isFinite(q?.utilization)) {
+   reading.append(node('span', unavailable, 'quota-caption'));
+   return reading;
+  }
+  const remaining = Math.min(100, Math.max(0, 100 - q.utilization));
+  const display = remaining > 0 && remaining < .1 ? '<0.1' : Math.round(remaining * 10) / 10;
+  const text = `${display}% left`;
+  heading.append(node('strong', text, 'quota-value'));
+  const bar = node('progress', undefined, 'quota-bar');
+  bar.max = 100;
+  bar.value = remaining;
+  bar.dataset.tone = stale ? 'cached' : remaining >= 70 ? 'good' : remaining >= 25 ? 'low' : 'critical';
+  bar.setAttribute('aria-label', `${title} quota remaining`);
+  bar.setAttribute('aria-valuetext', stale ? `${text} at last check (stale)` : text);
+  reading.append(bar, node('span', countdown(q.resets_at, now), 'quota-caption'));
+  return reading;
+ }
+ function renderAccount(a, note, record, now, expanded) {
+  const account = node('article', undefined, 'account');
+  const heading = node('header', undefined, 'account-head');
+  const identity = node('div');
+  const title = node('h3', a.id);
+  const state = a.availability === 'ready' ? '' : ` · ${reason(a.availability)}`;
+  identity.append(title, node('p', (note ? `Tier ${note.priority}` : 'Tier unknown · not offered') + state, 'account-meta'));
+  heading.append(identity);
+  if (note && record.decision.auth_id === a.id) {
+   account.dataset.selected = 'true';
+   heading.append(node('span', record.mode === 'active' ? 'Selected' : 'Shadow proposal', 'badge'));
+  }
+  const quota = node('div', undefined, 'quota-grid');
+  const stale = ['stale', 'reset_pending_refresh'].includes(a.availability);
+  if (!a.quota?.five_hour_absent) quota.append(quotaReading(a.quota?.five_hour, now, '5 hours', stale));
+  quota.append(quotaReading(a.quota?.seven_day, now, a.quota?.five_hour_absent ? 'Monthly allowance' : 'Long window', stale));
+  const extra = node('details', undefined, 'account-extra');
+  extra.open = expanded;
+  extra.append(node('summary', a.last_error ? 'Polling error · details' : 'Details', a.last_error ? 'warning' : ''));
+  if (note) extra.append(node('p', `Last offered: ${reason(note.reason)}`, 'detail'));
+  extra.append(node('p', `Last read: ${age(a.quota?.read_at, now)} · Next attempt: ${stamp(a.next_refresh)}`, 'detail'));
+  if (a.last_error) extra.append(node('p', `${a.last_error} · ${a.consecutive_failures} consecutive failures`, 'bad'));
+  if (a.quota?.five_hour_absent) extra.append(node('p', 'No five-hour window; ranks after known resets within the same tier.', 'detail'));
+  if (a.quota_details_truncated) extra.append(node('p', `${a.quota_details_truncated} quota details omitted by safety limits.`, 'warning'));
+  const windows = node('div', undefined, 'quota-grid');
+  for (const window of a.quota?.other_windows || []) windows.append(quotaReading(window, now, 'Other limit', stale));
+  const modelFilter = selectedModel.trim().toLowerCase().replace(/^codex\//, '');
+  for (const [model, list] of Object.entries(a.quota?.model_windows || {})) {
+   if (modelFilter && model !== modelFilter) continue;
+   for (const window of list) windows.append(quotaReading(window, now, model, stale));
+  }
+  if (windows.children.length) extra.append(windows);
+  account.append(heading, quota, extra);
+  return account;
+ }
  function render(){if(!data)return;setTheme();const now=Date.parse(data.server_time),h=data.history;const availableModels=[...new Set(h.decisions.map(r=>r.model).filter(Boolean))];const select=$('model');select.replaceChildren(node('option','Latest selection'));select.firstChild.value='';for(const model of availableModels){const option=node('option',model);option.value=model;select.append(option);}if(!availableModels.includes(selectedModel))selectedModel='';select.value=selectedModel;
   const record=h.decisions.find(r=>!selectedModel||r.model===selectedModel),d=record?.decision;const notes=new Map((d?.candidates||[]).map(c=>[c.auth_id,c]));
   $('health').textContent={healthy:'Healthy observations',starting:'Waiting for quota',no_accounts:'No eligible accounts',degraded:'Needs attention',failed:'Worker failed'}[data.state]||data.state;
   $('health').className=data.state==='healthy'?'good':data.state==='failed'?'bad':'warning';$('health-note').textContent=data.worker_failed?'The polling worker failed. Check host logs and reconfigure or reload the plugin.':data.list_error?'Credential roster could not be read.':data.state==='healthy'?'Worker and quota cache look healthy. This does not prove request success.':'Review quota age, coverage and errors below.';
   $('summary').replaceChildren();for(const [label,value] of [['Mode / version',`${data.mode} · v${data.version}`],['Fresh quota',`${data.fresh_accounts} / ${data.total_accounts}`],['Quota refresh',data.poll_interval],['Selections since reset',`${data.picks} (${data.routed} active)`]]){const pair=node('div');pair.append(node('dt',label),node('dd',value));$('summary').append(pair);}
-  $('order-note').textContent=record?`Last offered candidate snapshot for ${record.model||'unknown model'} · ${stamp(record.at)}. Higher tiers first, then earliest known reset. Not a permanent queue.`:'No scheduler traffic yet. Account tiers and model eligibility are unknown until CPA offers candidates.';
-  $('coverage').textContent=`${data.total_accounts} cached eligible Codex accounts. ${data.accounts_truncated||0} account rows omitted by the safety limit. ${record?.truncated||0} candidate details omitted in this selection. Not offered does not mean disabled or unavailable.`;
+  $('order-note').textContent = record ? `Last offered: ${record.model || 'unknown model'} · ${stamp(record.at)}. Higher tiers first, then earliest five-hour reset.` : 'Waiting for scheduler traffic to show tier order.';
+  $('coverage').hidden = !(data.accounts_truncated || record?.truncated);
+  $('coverage').textContent = `${data.accounts_truncated||0} accounts and ${record?.truncated||0} candidate details omitted by safety limits.`;
   const search=$('search').value.toLowerCase();const accounts=[...data.accounts].filter(a=>a.id.toLowerCase().includes(search));accounts.sort((a,b)=>{const x=notes.get(a.id),y=notes.get(b.id);if(!x&&!y)return a.id.localeCompare(b.id);if(!x)return 1;if(!y)return -1;return y.priority-x.priority||(x.five_hour_reset?Date.parse(x.five_hour_reset):Infinity)-(y.five_hour_reset?Date.parse(y.five_hour_reset):Infinity)||a.id.localeCompare(b.id);});
-  const tbody=$('accounts');tbody.replaceChildren();for(const a of accounts){const n=notes.get(a.id),row=node('tr'),identity=node('td');identity.append(node('span',a.id,'account-name'),node('span',n?`Tier ${n.priority}`:'Tier unknown · not offered','tier'));const state=node('td');const label=n?reason(n.reason):'Not offered / eligibility unknown';state.append(node('span',n&&d.auth_id===a.id?(record.mode==='active'?'Selected':'Shadow proposal'):label,n?.reason==='exhausted'?'badge warning':'badge'));if(n&&d.auth_id===a.id)state.append(node('span',label,'detail'));state.append(node('span',`Current cache: ${reason(a.availability)}`,'detail'));const five=node('td');five.append(quotaCell(a.quota?.five_hour,now));if(a.quota?.five_hour_absent)five.append(node('span','Explicit monthly-only allowance; ranks after known resets in the same tier.','detail'));const other=node('td');other.append(quotaCell(a.quota?.seven_day,now,'Long window'));for(const window of a.quota?.other_windows||[])other.append(quotaCell(window,now,'Other blocking window'));if(a.quota_details_truncated)other.append(node('span',`${a.quota_details_truncated} quota details omitted by safety limits.`,'warning'));for(const [model,windows] of Object.entries(a.quota?.model_windows||{})){if(selectedModel&&model!==selectedModel.trim().toLowerCase().replace(/^codex\//,''))continue;for(const w of windows)other.append(quotaCell(w,now,model));}const refresh=node('td');refresh.append(node('span',age(a.quota?.read_at,now)),node('span',`Next attempt: ${stamp(a.next_refresh)}`,'detail'));if(a.last_error)refresh.append(node('span',`${a.last_error} · ${a.consecutive_failures} consecutive failures`,'bad'));else refresh.append(node('span','No current polling error','detail'));row.append(identity,state,five,other,refresh);tbody.append(row);}
-  if(!accounts.length){const row=node('tr'),cell=node('td',search?'No matching accounts.':'No eligible Codex accounts have been discovered.');cell.colSpan=5;row.append(cell);tbody.append(row);}
+  const list = $('accounts');
+  const expanded = new Set([...list.children].filter(card => card.querySelector?.('details')?.open).map(card => card.querySelector('h3').textContent));
+  const focusedSummary = document.activeElement;
+  const focusedCard = focusedSummary?.tagName === 'SUMMARY' && focusedSummary.closest('.account');
+  const focusedTitle = focusedCard ? focusedCard.querySelector('h3').textContent : null;
+  list.replaceChildren(...accounts.map(a => renderAccount(a, notes.get(a.id), record, now, expanded.has(a.id))));
+  if (focusedTitle !== null) [...list.children].find(card => card.querySelector('h3')?.textContent === focusedTitle)?.querySelector('summary').focus({preventScroll:true});
+  if (!accounts.length) empty(list, search ? 'No matching accounts.' : 'No eligible Codex accounts have been discovered.');
+  $('activity-count').textContent = `· ${h.decisions.length} decisions · ${h.incidents.length} incidents`;
   $('latest').textContent=record?`${record.mode==='shadow'?'Shadow proposal':'Scheduler choice'}: ${d.auth_id||'delegated to CPA'} · ${record.model} · ${record.stream?'streaming':'non-streaming'} · ${stamp(record.at)} · ${reason(d.reason)}`:'No scheduler decisions yet. Send ordinary traffic through CPA to observe selections.';
   $('incidents').replaceChildren();for(const i of h.incidents.filter(i=>!search||i.account?.toLowerCase().includes(search))){const li=node('li');li.append(node('time',stamp(i.last_at)),node('strong',i.code==='recovered'?'Recovered':i.code,i.code==='recovered'?'good':'warning'),node('span',`${i.account||'Plugin'} · ${i.kind} · ${i.count} occurrence(s); first ${stamp(i.at)}`,'detail'));$('incidents').append(li);}if(!$('incidents').children.length)empty($('incidents'),'No recorded problems or recoveries in this history.');
   $('decisions').replaceChildren();for(const r of h.decisions.filter(r=>(!selectedModel||r.model===selectedModel)&&(!search||(r.decision.auth_id||'').toLowerCase().includes(search)))){const li=node('li');li.append(node('time',`${stamp(r.at)} · #${r.sequence}`),node('strong',r.decision.auth_id||'Delegated to CPA'),node('span',`${r.model} · ${r.mode} · ${r.stream?'stream':'non-stream'} · ${reason(r.decision.reason)}`,'detail'));$('decisions').append(li);}if(!$('decisions').children.length)empty($('decisions'),'No matching scheduler decisions.');

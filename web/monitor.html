@@ -1,13 +1,56 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Quota First Router · Monitor</title><link rel="stylesheet" href="monitor.css"><script src="monitor.js" defer></script></head>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Quota First Router · Monitor</title>
+  <link rel="stylesheet" href="monitor.css">
+  <script src="monitor.js" defer></script>
+</head>
 <body><main>
-<header><div><p class="eyebrow">QUOTA FIRST ROUTER / OBSERVE</p><h1>Routing monitor</h1><p class="muted">Highest usable tier. Earliest five-hour reset inside that tier.</p></div><div class="toolbar"><button id="refresh">Refresh now</button><button id="pause" aria-pressed="false">Pause updates</button><button id="theme">Theme: auto</button><button id="signout">Forget key</button></div></header>
-<p id="connection" role="status" aria-live="polite">Loading monitor…</p>
-<form id="login" hidden><h2>Connect to management</h2><p>This page needs CPA management access. The key you enter stays in memory for this tab only.</p><label for="key">Management key</label><input id="key" type="password" autocomplete="current-password" required><button>Connect</button></form>
-<div id="private" hidden>
-<section class="health" aria-label="Health summary"><div><span class="eyebrow">OBSERVATION</span><h2 id="health">Starting</h2><p id="health-note"></p></div><dl id="summary"></dl></section>
-<section><div class="section-head"><div><h2>Accounts &amp; tier order</h2><p id="order-note" class="muted"></p></div><div class="filters"><label>Find account<input id="search" type="search" placeholder="Account name"></label><label>Observed model<select id="model"><option value="">Latest selection</option></select></label></div></div><p id="coverage" class="muted"></p><div class="table-wrap" tabindex="0" aria-label="Account quota table"><table><thead><tr><th scope="col">Account / tier</th><th scope="col">Selection</th><th scope="col">Five-hour quota</th><th scope="col">Long / model limits</th><th scope="col">Refresh &amp; errors</th></tr></thead><tbody id="accounts"></tbody></table></div></section>
-<section class="selection"><h2>Latest scheduler selection</h2><p id="latest"></p><p class="muted">A scheduler selection is not proof of the account that served a request. CPA may retry another account. Concurrent traffic can replace the latest selection; retry passes may create more than one decision per request.</p></section>
-<div class="history-grid"><section><h2>Problems &amp; recoveries</h2><p class="muted">Polling, credential roster and worker events—not inference errors.</p><ol id="incidents" class="history"></ol></section><section><h2>Recent scheduler decisions</h2><p class="muted">Active selections, shadow proposals and delegated choices.</p><ol id="decisions" class="history"></ol></section></div>
-<footer><p id="history-note"></p><p>Read-only view. Display refresh: every 5 seconds while visible. This does not fetch provider quota or send inference requests.</p><p>For actual served accounts, request failures, token usage and costs, use your host’s <strong>Request Events / Logs</strong>. For enablement or rollback, use <strong>Plugin management</strong>. History resets on restart or reconfiguration; this is not durable analytics.</p></footer>
-</div></main></body></html>
+  <header class="page-head">
+    <div><h1>Routing monitor</h1><p id="connection" role="status">Loading monitor…</p></div>
+    <div class="toolbar">
+      <button id="refresh">Refresh now</button>
+      <button id="pause" aria-pressed="false">Pause updates</button>
+      <details class="options"><summary>Options</summary><div class="option-panel"><button id="theme">Theme: auto</button><button id="signout">Forget key</button></div></details>
+    </div>
+  </header>
+  <form id="login" class="panel" hidden>
+    <h2>Connect to management</h2>
+    <p class="muted">Your key stays in memory for this tab only.</p>
+    <label for="key">Management key</label>
+    <div class="login-controls"><input id="key" type="password" autocomplete="current-password" required><button>Connect</button></div>
+  </form>
+  <div id="private" hidden>
+    <section class="health panel" aria-label="Health summary">
+      <div class="health-status"><h2 id="health">Starting</h2><p id="health-note" class="muted"></p></div>
+      <dl id="summary"></dl>
+    </section>
+    <section class="quota-section" aria-labelledby="account-heading">
+      <div class="section-head">
+        <div><h2 id="account-heading">Account quota</h2><p class="muted">Bars show quota left at the last successful check.</p></div>
+        <div class="filters">
+          <label>Find account<input id="search" type="search" placeholder="Account name"></label>
+          <label>Observed model<select id="model"><option value="">Latest selection</option></select></label>
+        </div>
+      </div>
+      <p id="order-note" class="muted order-note"></p>
+      <p id="coverage" class="warning" hidden></p>
+      <div id="accounts" class="accounts"></div>
+    </section>
+    <details class="panel history-panel">
+      <summary>Routing activity <span id="activity-count" class="muted"></span></summary>
+      <div class="activity-body">
+        <section><h2>Latest scheduler selection</h2><p id="latest"></p><p class="muted">Choices and shadow proposals are not served-account evidence. Check your host’s Request Events / Logs for actual results.</p></section>
+        <div class="history-grid">
+          <section><h2>Problems &amp; recoveries</h2><ol id="incidents" class="history"></ol></section>
+          <section><h2>Recent scheduler decisions</h2><ol id="decisions" class="history"></ol></section>
+        </div>
+        <p id="history-note" class="muted"></p>
+      </div>
+    </details>
+    <footer>Read-only. Refreshing this page does not poll provider quota or send requests to your accounts.</footer>
+  </div>
+</main></body>
+</html>

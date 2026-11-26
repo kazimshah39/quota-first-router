@@ -12,6 +12,8 @@ class Element {
   append(...children) { this.children.push(...children); }
   replaceChildren(...children) { this.children = children; this._text = ''; }
   get firstChild() { return this.children[0]; }
+  querySelector(tag) { return this.findAll(tag)[0]; }
+  findAll(tag) { return this.children.flatMap(c => [...(c.tagName === tag ? [c] : []), ...c.findAll(tag)]); }
   addEventListener(type, fn) { this.handlers[type] = fn; }
   setAttribute(k,v) { this.attributes[k] = v; }
   focus() {}
@@ -43,13 +45,32 @@ async function main() {
   requests[0].resolve({ok:true,status:200,json:async()=>snapshot});await tick();
   assert.equal(element('private').hidden,true,'late response must not restore logged-out diagnostics');
   assert.equal(element('history-note').textContent,'');
-  submit('secret');requests[1].resolve({ok:true,status:200,json:async()=>snapshot});await tick();
+  const quota = {five_hour:{utilization:20},seven_day:{utilization:62},model_windows:{'gpt-example':[{utilization:100}]}};
+  const populated = {...snapshot, total_accounts:4, fresh_accounts:3, accounts:[
+    {id:'primary', availability:'ready', quota},
+    {id:'cached', availability:'stale', quota:{five_hour:{utilization:0}}},
+    {id:'monthly', availability:'ready', quota:{five_hour_absent:true,seven_day:{utilization:76}}},
+    {id:'unread', availability:'unknown'},
+  ]};
+  submit('secret');requests[1].resolve({ok:true,status:200,json:async()=>populated});await tick();
   assert.equal(element('private').hidden,false);
-  element('refresh').click();requests[2].resolve({ok:false,status:403});await tick();
+  const list=element('accounts');
+  assert.deepEqual(list.findAll('progress').map(bar=>[bar.value,bar.dataset.tone]),[[100,'cached'],[24,'critical'],[80,'good'],[38,'low'],[0,'critical']]);
+  assert.equal(list.children[3].findAll('progress').length,0,'unknown is not 0%');
+  assert.match(list.children[1].textContent,/Monthly allowance/);
+  assert.doesNotMatch(list.children[1].textContent,/5 hours/);
+  const details=list.findAll('details');
+  assert.equal(details.every(detail=>detail.open===false),true);
+  assert.match(details[2].textContent,/gpt-example/);
+  details[2].open=true;
+  element('refresh').click();requests[2].resolve({ok:true,status:200,json:async()=>populated});await tick();
+  assert.equal(list.findAll('details')[2].open,true,'auto-refresh must not close expanded account');
+  element('refresh').click();requests[3].resolve({ok:false,status:403});await tick();
+  assert.equal(list.findAll('progress').length,0,'forbidden removes previous quota indicators');
   assert.equal(element('private').hidden,true);assert.equal(element('history-note').textContent,'');assert.equal(element('model').textContent,'Latest selection');
   assert.equal(writes,0,'must not persist entered key');
-  submit('secret');document.hidden=true;document.visibilitychange();assert.equal(requests[3].options.signal.aborted,true,'hidden page aborts');
-  requests[3].resolve({ok:true,status:200,json:async()=>snapshot});await tick();assert.equal(element('private').hidden,true);
-  console.log('PASS monitor controller: standalone theme, one-inflight, logout race, forbidden clearing, hidden abort, memory-only key');
+  submit('secret');document.hidden=true;document.visibilitychange();assert.equal(requests[4].options.signal.aborted,true,'hidden page aborts');
+  requests[4].resolve({ok:true,status:200,json:async()=>snapshot});await tick();assert.equal(element('private').hidden,true);
+  console.log('PASS monitor: remaining-quota bars, thresholds, monthly/unknown/stale states, persistent disclosure, theme, logout race, auth clearing and single-flight refresh');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});
