@@ -54,11 +54,10 @@ def main():
                 cmd=[certutil,'-f','-addstore','Root',str(cert)] if add else [certutil,'-delstore','Root',fingerprint]
             elif goos=='darwin':
                 keychain='/Library/Keychains/System.keychain'
-                cmd=['sudo','-n','security','add-trusted-cert','-d','-r','trustRoot','-k',keychain,str(cert)] if add else ['sudo','-n','security','remove-trusted-cert','-d',str(cert)]
+                cmd=['sudo','-n','security','add-trusted-cert','-d','-r','trustRoot','-k',keychain,str(cert)] if add else ['sudo','-n','security','delete-certificate','-t','-Z',fingerprint,keychain]
             else:return
             print('Native trust', 'add' if add else 'remove',goos,flush=True)
             subprocess.run(cmd,check=True,capture_output=True,timeout=30)
-            if not add and goos=='darwin':subprocess.run(['sudo','-n','security','delete-certificate','-Z',fingerprint,'/Library/Keychains/System.keychain'],check=True,capture_output=True)
         class Fixture(http.server.BaseHTTPRequestHandler):
             def log_message(self,*_):pass
             def answer(self,code,value,content='application/json'):
@@ -83,9 +82,11 @@ def main():
                     while not stop.is_set():
                         ready,_,_=select.select([self.connection,upstream],[],[],.5)
                         for src in ready:
-                            raw=src.recv(65536)
-                            if not raw:return
-                            (upstream if src is self.connection else self.connection).sendall(raw)
+                            try:
+                                raw=src.recv(65536)
+                                if not raw:return
+                                (upstream if src is self.connection else self.connection).sendall(raw)
+                            except (ConnectionResetError,BrokenPipeError):return
         proxy=http.server.ThreadingHTTPServer(('127.0.0.1',0),Proxy)
         for server in (fixture,proxy):threading.Thread(target=server.serve_forever,daemon=True).start();servers.append(server)
         auths=root/'auths';plugins=root/'plugins';auths.mkdir();plugins.mkdir()
@@ -171,7 +172,9 @@ def main():
             with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:assert list(pool.map(lambda _:inference(),range(24)))==['b']*24
             assert len(polls)==count,'request path polled'
             end=time.monotonic()+a.seconds;requests=0
-            while time.monotonic()<end:assert inference()=='b';requests+=1;time.sleep(.1)
+            while time.monotonic()<end:
+                actual=inference();assert actual=='b',{'actual':actual,'status':status(),'polls':polls,'auth_files':[p.name for p in auths.iterdir()]}
+                requests+=1;time.sleep(.1)
             if a.seconds>=65:assert len(polls)>count,'natural polling did not continue'
             exhausted.update(['a','b']);configure();assert inference()=='c','tier descent'
             exhausted.clear();configure();assert inference()=='b','tier recovery'
