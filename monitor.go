@@ -114,14 +114,23 @@ func monitorEmail(value string) string {
 	return value
 }
 
+func monitorPlan(plan string) string {
+	switch plan = strings.ToLower(strings.TrimSpace(plan)); plan {
+	case "free", "go", "plus", "pro", "team", "business", "enterprise", "edu":
+		return plan
+	default:
+		return ""
+	}
+}
+
 // Bound provider-supplied model labels/windows independently of routing data.
-// PlanType and Identity are intentionally omitted from the diagnostic DTO.
+// Only known subscription codes are exposed; identity and unknown labels are omitted.
 func monitorQuota(source *quotaSnapshot) (*quotaSnapshot, int) {
 	if source == nil {
 		return nil, 0
 	}
 	q := *source
-	q.PlanType, q.Identity = "", ""
+	q.PlanType, q.Identity = monitorPlan(source.PlanType), ""
 	q.Provider = "codex"
 	q.Windows = append([]quotaWindow(nil), source.Windows[:min(len(source.Windows), candidateLimit)]...)
 	omitted := len(source.Windows) - len(q.Windows)

@@ -237,6 +237,15 @@ func TestMonitorAccountQuotaAndResponseBounds(t *testing.T) {
 	}
 }
 
+func TestMonitorAllowsOnlyKnownPlanNames(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{{" Plus ", "plus"}, {"free", "free"}, {"PRO", "pro"}, {"private-provider-label@example.test", ""}} {
+		q, _ := monitorQuota(&quotaSnapshot{PlanType: tc.in})
+		if q.PlanType != tc.want {
+			t.Fatalf("unexpected monitor plan %q, want %q", q.PlanType, tc.want)
+		}
+	}
+}
+
 func TestMonitorUsesRosterEmailAndPriority(t *testing.T) {
 	cfg, _ := decodeConfig(nil)
 	h := &fakeHost{entries: []pluginapi.HostAuthFileEntry{

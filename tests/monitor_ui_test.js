@@ -21,12 +21,14 @@ class Element {
 }
 async function main() {
   const ids = new Map(); const element = id => { if (!ids.has(id)) ids.set(id,new Element()); return ids.get(id); };
-  let requests = [], observations = 0, writes = 0, color = 'dark';
+  let requests = [], observations = 0, writes = 0, color = 'dark', nextTimer = 0;
+  const timers = new Map();
   const document = { hidden:false,documentElement:new Element(),createElement:tag=>new Element(tag),getElementById:element,addEventListener(type,fn){this[type]=fn;} };
   const context = { document, URL, Uint8Array, TextEncoder, TextDecoder, atob, AbortController, Date, JSON, console,
     localStorage:{getItem(){return null;},setItem(){writes++;}}, location:{origin:'http://fixture',host:'fixture'},
     MutationObserver:class {observe(){observations++;}}, matchMedia:()=>({matches:color==='dark'}),
-    setTimeout:()=>1,clearTimeout(){},
+    setTimeout(fn,delay){timers.set(++nextTimer,{fn,delay});return nextTimer;},
+    clearTimeout(id){timers.delete(id);},
     fetch(url,options){return new Promise(resolve=>requests.push({url,options,resolve}));},
   };
   context.window=context; context.parent=context;
@@ -45,7 +47,7 @@ async function main() {
   requests[0].resolve({ok:true,status:200,json:async()=>snapshot});await tick();
   assert.equal(element('private').hidden,true,'late response must not restore logged-out diagnostics');
   assert.equal(element('history-note').textContent,'');
-  const quota = {five_hour:{utilization:20},seven_day:{utilization:62},model_windows:{'gpt-example':[{utilization:100}]}};
+  const quota = {plan_type:'plus',five_hour:{utilization:20},seven_day:{utilization:62},model_windows:{'gpt-example':[{utilization:100}]}};
   const populated = {...snapshot, total_accounts:4, fresh_accounts:3, history:{...snapshot.history, decisions:[{mode:'shadow', model:'gpt-example', decision:{auth_id:'primary', candidates:[{auth_id:'primary', priority:20, reason:'ready'}]}}]}, accounts:[
     {id:'primary', availability:'ready', quota},
     {id:'cached', availability:'stale', quota:{five_hour:{utilization:0}}},
@@ -73,14 +75,17 @@ async function main() {
     {id:'codex-9router-527e014a-alex+work@example.test.json', availability:'exhausted', quota, priority:0},
     {id:'codex-abcd1234-different@example.test-plus.json', email:'alex+work@example.test', availability:'ready', quota, priority:10},
     {id:'codex-12345678-non-email.json', availability:'unknown'},
-    {id:'codex-aabb1234-user-name@example.test-plus.json', availability:'unknown', priority:20},
+    {id:'codex-aabb1234-other@example.test-free.json', email:'user-name@googlemail.com', availability:'ready', priority:20, quota:{plan_type:'free'}},
   ]};
   element('refresh').click();requests[3].resolve({ok:true,status:200,json:async()=>named});await tick();
-  assert.deepEqual(list.findAll('h3').map(title=>title.textContent), ['codex-12345678-non-email.json','alex+work@example.test','user-name@example.test','alex+work@example.test']);
-  assert.doesNotMatch(list.textContent,/Tier unknown/);
-  assert.match(list.children[1].textContent,/Tier 0/);
-  assert.match(list.children[2].textContent,/Tier 20/);
-  assert.match(list.children[3].textContent,/Tier 10/);
+  assert.deepEqual(list.findAll('h3').map(title=>title.textContent), ['codex-12345678-non-email.json','alex+work@example.test','user-name@gmail.com','alex+work@example.test']);
+  assert.doesNotMatch(list.textContent,/Tier (unknown|\d)/);
+  assert.match(list.children[1].children[0].textContent,/Plus/);
+  assert.match(list.children[2].children[0].textContent,/Free/);
+  for (const [i, priority] of [[1,0],[2,20],[3,10]]) {
+    assert.doesNotMatch(list.children[i].children[0].textContent,/priority/);
+    assert.match(list.children[i].querySelector('details').textContent,new RegExp(`Routing priority: ${priority}`));
+  }
   assert.equal(list.children[1].dataset.exhausted,'true');
   assert.equal(list.children[1].findAll('span').find(el=>el.className==='quota-alert').attributes['aria-label'],'Quota exhausted');
   assert.doesNotMatch(list.children[1].textContent,/Quota exhausted/);
@@ -92,7 +97,18 @@ async function main() {
   assert.equal(element('private').hidden,true);assert.equal(element('history-note').textContent,'');assert.equal(element('model').textContent,'Latest selection');
   assert.equal(writes,0,'must not persist entered key');
   submit('secret');document.hidden=true;document.visibilitychange();assert.equal(requests[6].options.signal.aborted,true,'hidden page aborts');
+  document.hidden=false;document.visibilitychange();
+  assert.equal(requests.length,7,'wait for the previous request to settle before resuming');
   requests[6].resolve({ok:true,status:200,json:async()=>snapshot});await tick();assert.equal(element('private').hidden,true);
+  assert.equal(requests.length,8,'quickly returning visible starts a fresh read');
+  requests[7].resolve({ok:true,status:200,json:async()=>snapshot});await tick();
+  assert.equal(element('private').hidden,false);
+  assert.deepEqual([...timers.values()].map(timer=>timer.delay),[5000],'a visible tab keeps refreshing');
+  document.hidden=true;document.visibilitychange();
+  assert.equal(timers.size,0,'hidden tab cancels its refresh timer');
+  assert.equal(requests.length,8);
+  document.hidden=false;document.visibilitychange();
+  assert.equal(requests.length,9,'returning visible reads immediately');
   console.log('PASS monitor: remaining-quota bars, thresholds, monthly/unknown/stale states, persistent disclosure, theme, logout race, auth clearing and single-flight refresh');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

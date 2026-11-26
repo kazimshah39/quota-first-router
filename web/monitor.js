@@ -2,7 +2,8 @@
 (() => {
  const $ = id => document.getElementById(id);
  const endpoint = '/v0/management/plugins/quota-first-router/monitor';
- let key = '', data = null, timer = null, controller = null, paused = false, failures = 0, selectedModel = '', theme = 'auto', generation = 0;
+ const hiddenAbort = Symbol('hidden tab');
+ let key = '', data = null, timer = null, controller = null, failures = 0, selectedModel = '', theme = 'auto', generation = 0;
  const reasons = {ready:'Quota usable',exhausted:'Quota exhausted',stale:'Quota observation is stale',unknown:'Quota unknown',disabled:'Account disabled',identity_changed:'Credential changed; waiting for quota',reset_pending_refresh:'Reset passed; waiting for fresh quota',earliest_five_hour_reset:'Earliest five-hour reset in highest usable tier',usable_unknown_reset:'Usable quota; reset time unknown',tier_quota_unknown_delegate:'Unknown quota in highest usable tier; delegated to CPA',no_usable_quota:'No observed usable quota',no_known_usable_quota:'No known usable quota',provider_not_exclusively_supported:'Not exclusively Codex; delegated to CPA'};
  const reason = code => reasons[code] || code || 'Not offered / eligibility unknown';
  function node(tag, text, cls) {const n = document.createElement(tag);if(text!==undefined)n.textContent=String(text);if(cls)n.className=cls;return n;}
@@ -13,11 +14,11 @@
  function inheritedKey(){try{let raw=localStorage.getItem('cli-proxy-auth');if(!raw)return '';if(raw.startsWith('enc::v2::')){const bytes=Uint8Array.from(atob(raw.slice(9)),c=>c.charCodeAt(0));const salt=new TextEncoder().encode('cli-proxy-api-webui::secure-storage|'+location.host);for(let i=0;i<bytes.length;i++)bytes[i]^=salt[i%salt.length];raw=new TextDecoder().decode(bytes);}const state=JSON.parse(raw).state;const base=new URL(state.apiBase||location.origin,location.origin);return base.origin===location.origin&&typeof state.managementKey==='string'?state.managementKey:'';}catch{return '';}}
  function setTheme(){let value=theme;try{if(value==='auto'&&parent!==window)value=parent.document.documentElement.dataset.theme||'';}catch{}if(!['light','dark'].includes(value))value=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(document.documentElement.dataset.theme!==value)document.documentElement.dataset.theme=value;}
  function disconnect(message){generation++;controller?.abort();key='';data=null;failures=0;selectedModel='';clearTimeout(timer);$('private').hidden=true;for(const id of ['summary','accounts','latest','incidents','decisions','health','health-note','order-note','coverage','history-note','activity-count'])$(id).replaceChildren();$('model').replaceChildren(node('option','Latest selection'));$('model').firstChild.value='';$('search').value='';$('login').hidden=false;$('connection').textContent=message;$('connection').className='warning';}
- function schedule(){clearTimeout(timer);if(!paused&&!document.hidden&&key)timer=setTimeout(load,Math.min(60000,5000*2**Math.min(failures,4)));}
+ function schedule(){clearTimeout(timer);if(!document.hidden&&key)timer=setTimeout(load,Math.min(60000,5000*2**Math.min(failures,4)));}
  async function load(){if(controller||!key||document.hidden)return;clearTimeout(timer);controller=new AbortController();const current=controller,epoch=generation,timeout=setTimeout(()=>current.abort(),10000);$('refresh').disabled=true;
-  try{const response=await fetch(endpoint,{headers:{Authorization:'Bearer '+key},signal:controller.signal,cache:'no-store',credentials:'same-origin'});if(epoch!==generation||current.signal.aborted)return;if(response.status===401||response.status===403){disconnect('Management access was rejected. Connect again to continue.');return;}if(!response.ok)throw new Error(response.status===404?'Monitor unavailable. The plugin may be disabled or unloaded; check Plugin management.':`Monitor request failed (HTTP ${response.status}).`);const next=await response.json();if(epoch!==generation||current.signal.aborted)return;if(!next.history)throw new Error('Monitor is stopped or unavailable. Check Plugin management.');const reset=data&&data.history.epoch!==next.history.epoch;data=next;failures=0;render();$('connection').className='good';$('connection').textContent=(reset?'History reset after restart or reconfiguration. ':'')+`Updated ${new Date().toLocaleTimeString()}. ${paused?'Updates paused.':'Updates every 5 seconds while visible.'}`;$('private').hidden=false;$('login').hidden=true;}
-  catch(error){if(epoch!==generation||current.signal.aborted&&(document.hidden||paused))return;failures++;$('connection').className='warning';$('connection').textContent=(data?'Displayed data is stale. ':'')+(error.name==='AbortError'?'Monitor request timed out.':error.message)+' Use Refresh now to retry.';}
-  finally{clearTimeout(timeout);if(controller===current)controller=null;$('refresh').disabled=false;schedule();}
+  try{const response=await fetch(endpoint,{headers:{Authorization:'Bearer '+key},signal:controller.signal,cache:'no-store',credentials:'same-origin'});if(epoch!==generation||current.signal.aborted)return;if(response.status===401||response.status===403){disconnect('Management access was rejected. Connect again to continue.');return;}if(!response.ok)throw new Error(response.status===404?'Monitor unavailable. The plugin may be disabled or unloaded; check Plugin management.':`Monitor request failed (HTTP ${response.status}).`);const next=await response.json();if(epoch!==generation||current.signal.aborted)return;if(!next.history)throw new Error('Monitor is stopped or unavailable. Check Plugin management.');const reset=data&&data.history.epoch!==next.history.epoch;data=next;failures=0;render();$('connection').className='good';$('connection').textContent=(reset?'History reset after restart or reconfiguration. ':'')+`Updated ${new Date().toLocaleTimeString()}`;$('private').hidden=false;$('login').hidden=true;}
+  catch(error){if(epoch!==generation||document.hidden||current.signal.reason===hiddenAbort)return;failures++;$('connection').className='warning';$('connection').textContent=(data?'Displayed data is stale. ':'')+(error.name==='AbortError'?'Monitor request timed out.':error.message)+' Use Refresh now to retry.';}
+  finally{clearTimeout(timeout);if(controller===current)controller=null;$('refresh').disabled=false;if(current.signal.reason===hiddenAbort&&!document.hidden)load();else schedule();}
  }
  function quotaReading(q, now, title, stale, unavailable='Not reported') {
   const reading = node('div', undefined, 'quota-reading');
@@ -41,14 +42,16 @@
   reading.append(bar, node('span', countdown(q.resets_at, now), 'quota-caption'));
   return reading;
  }
+ const displayEmail = email => email.replace(/@googlemail\.com$/i, '@gmail.com');
+ const planNames = new Map([['free','Free'],['go','Go'],['plus','Plus'],['pro','Pro'],['team','Team'],['business','Business'],['enterprise','Enterprise'],['edu','Edu']]);
  function accountTitle(a) {
-  if (a.email) return a.email;
+  if (a.email) return displayEmail(a.email);
   // Older snapshots may only have the file name, including Codex's plan suffix.
   const id = a.id;
   const stem = id.replace(/\.json$/i, '');
   const prefix = /^codex-(?:(?:9router-)?[0-9a-f]{8}-)?/i;
   const candidate = prefix.test(stem) ? stem.replace(prefix, '').replace(/-(?:free|plus|pro|team|business|enterprise|edu)$/i, '') : stem;
-  return /^[\w.!#$%&'*+\/=?^_`{|}~-]+@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]+$/i.test(candidate) ? candidate : id;
+  return /^[\w.!#$%&'*+\/=?^_`{|}~-]+@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]+$/i.test(candidate) ? displayEmail(candidate) : id;
  }
  const modelKey = model => (model || '').trim().toLowerCase().replace(/^codex\//, '');
  function exhaustedFor(a, model, now) {
@@ -66,7 +69,8 @@
   const exhausted = exhaustedFor(a, record?.model, now);
   const priority = note?.priority ?? a.priority;
   const meta = [];
-  if (Number.isInteger(priority)) meta.push(`Tier ${priority}`);
+  const plan = planNames.get(a.quota?.plan_type);
+  if (plan) meta.push(plan);
   if (!exhausted && a.availability !== 'ready' && a.availability !== 'unknown') meta.push(reason(a.availability));
   identity.append(title);
   if (meta.length) identity.append(node('p', meta.join(' · '), 'account-meta'));
@@ -92,6 +96,7 @@
   const extra = node('details', undefined, 'account-extra');
   extra.open = expanded;
   extra.append(node('summary', a.last_error ? 'Polling error · details' : 'Details', a.last_error ? 'warning' : ''));
+  if (Number.isInteger(priority)) extra.append(node('p', `Routing priority: ${priority}`, 'detail'));
   if (note?.reason && note.reason !== 'ready' && note.reason !== a.availability && !(exhausted && note.reason === 'exhausted')) {
    extra.append(node('p', `At last decision: ${reason(note.reason)}`, 'detail'));
   }
@@ -119,7 +124,7 @@
   $('order-note').textContent = record ? `Tier order at ${stamp(record.at)} · ${record.model || 'Unknown model'}` : 'Tier order appears after the first request.';
   $('coverage').hidden = !(data.accounts_truncated || record?.truncated);
   $('coverage').textContent = `${data.accounts_truncated||0} accounts and ${record?.truncated||0} candidate details omitted by safety limits.`;
-  const search=$('search').value.toLowerCase();const accounts=data.accounts.filter(a=>a.id.toLowerCase().includes(search)||accountTitle(a).toLowerCase().includes(search));accounts.sort((a,b)=>{const x=notes.get(a.id),y=notes.get(b.id);if(!x&&!y)return a.id.localeCompare(b.id);if(!x)return 1;if(!y)return -1;return y.priority-x.priority||(x.five_hour_reset?Date.parse(x.five_hour_reset):Infinity)-(y.five_hour_reset?Date.parse(y.five_hour_reset):Infinity)||a.id.localeCompare(b.id);});
+  const search=$('search').value.toLowerCase();const accounts=data.accounts.filter(a=>a.id.toLowerCase().includes(search)||a.email?.toLowerCase().includes(search)||accountTitle(a).toLowerCase().includes(search));accounts.sort((a,b)=>{const x=notes.get(a.id),y=notes.get(b.id);if(!x&&!y)return a.id.localeCompare(b.id);if(!x)return 1;if(!y)return -1;return y.priority-x.priority||(x.five_hour_reset?Date.parse(x.five_hour_reset):Infinity)-(y.five_hour_reset?Date.parse(y.five_hour_reset):Infinity)||a.id.localeCompare(b.id);});
   const list = $('accounts');
   const expanded = new Set([...list.children].filter(card => card.querySelector('details')?.open).map(card => card.dataset.accountId));
   const focusedSummary = document.activeElement;
@@ -141,11 +146,10 @@
  }
  $('login').addEventListener('submit',event=>{event.preventDefault();generation++;key=$('key').value.trim();$('key').value='';failures=0;load();});
  $('refresh').addEventListener('click',()=>{if(key)load();else{$('login').hidden=false;$('key').focus();}});
- $('pause').addEventListener('click',()=>{paused=!paused;$('pause').textContent=paused?'Resume updates':'Pause updates';$('pause').setAttribute('aria-pressed',String(paused));clearTimeout(timer);if(paused){controller?.abort();$('connection').textContent='Updates paused. Displayed data is a snapshot; Refresh now still works.';}else load();});
  $('signout').addEventListener('click',()=>{controller?.abort();disconnect('Key forgotten for this page. Connect again to continue.');$('key').focus();});
  $('search').addEventListener('input',render);$('model').addEventListener('change',()=>{selectedModel=$('model').value;render();});
  $('theme').addEventListener('click',()=>{theme=theme==='auto'?'dark':theme==='dark'?'light':'auto';$('theme').textContent='Theme: '+theme;setTheme();});
- document.addEventListener('visibilitychange',()=>{clearTimeout(timer);if(document.hidden)controller?.abort();else if(!paused)load();});
+ document.addEventListener('visibilitychange',()=>{clearTimeout(timer);if(document.hidden)controller?.abort(hiddenAbort);else load();});
  try{if(parent!==window)new MutationObserver(setTheme).observe(parent.document.documentElement,{attributes:true,attributeFilter:['data-theme','class','style']});}catch{}
  setTheme();key=inheritedKey();if(key)load();else disconnect('Connect with your management key. No diagnostic data is public.');
 })();
