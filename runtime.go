@@ -69,18 +69,16 @@ func (p *pluginRuntime) handle(method string, raw []byte) []byte {
 		}
 		return success(pluginapi.SchedulerPickResponse{})
 	case pluginabi.MethodManagementRegister:
-		return success(pluginapi.ManagementRegistrationResponse{Routes: []pluginapi.ManagementRoute{{Method: http.MethodGet, Path: statusPath}}})
+		return success(pluginapi.ManagementRegistrationResponse{
+			Routes:    []pluginapi.ManagementRoute{{Method: http.MethodGet, Path: statusPath}, {Method: http.MethodGet, Path: monitorPath}},
+			Resources: []pluginapi.ResourceRoute{{Path: resourcePath, Menu: "Quota First Router", Description: "Account order, quota health and recent scheduler decisions"}, {Path: resourcePath + ".css"}, {Path: resourcePath + ".js"}},
+		})
 	case pluginabi.MethodManagementHandle:
 		var req pluginapi.ManagementRequest
-		if err := json.Unmarshal(raw, &req); err != nil || req.Method != http.MethodGet || req.Path != statusPath {
+		if err := json.Unmarshal(raw, &req); err != nil {
 			return success(pluginapi.ManagementResponse{StatusCode: http.StatusNotFound})
 		}
-		var status any = map[string]string{"state": "stopped"}
-		if e := p.active.Load(); e != nil {
-			status = e.status()
-		}
-		body, _ := json.Marshal(status)
-		return success(pluginapi.ManagementResponse{StatusCode: http.StatusOK, Headers: http.Header{"Content-Type": {"application/json"}, "Cache-Control": {"no-store"}}, Body: body})
+		return success(p.management(req))
 	default:
 		return failure("unsupported_method")
 	}
@@ -101,7 +99,7 @@ func (p *pluginRuntime) configure(cfg config) {
 		defer close(done)
 		defer func() {
 			if recover() != nil {
-				e.failed.Store(true)
+				e.markFailed()
 			}
 		}()
 		e.run(ctx)

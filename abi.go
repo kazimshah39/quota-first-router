@@ -44,7 +44,7 @@ func cliproxyPluginCall(method *C.char, request *C.uint8_t, length C.size_t, res
 	defer func() {
 		if recover() != nil {
 			if e := plugin.active.Load(); e != nil {
-				e.failed.Store(true)
+				e.markFailed()
 			}
 			if method != nil && C.GoString(method) == pluginabi.MethodSchedulerPick {
 				writeResponse(response, success(pluginapi.SchedulerPickResponse{}))

@@ -40,6 +40,7 @@ def main():
     version_output=subprocess.run([str(cpa),'--version'],capture_output=True,text=True,timeout=15)
     assert '8.1.0' in version_output.stdout+version_output.stderr,'Wrong CPA host version'
     spec=importlib.util.spec_from_file_location('native_binary',Path(__file__).resolve().parents[1]/'scripts/binary.py');mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod);inspection=mod.inspect(library.read_bytes(),goos,arch)
+    release_spec=importlib.util.spec_from_file_location('candidate_release',Path(__file__).resolve().parents[1]/'scripts/release.py');release=importlib.util.module_from_spec(release_spec);release_spec.loader.exec_module(release);version=release.version()
     trust_added=False;proc=None;servers=[];accounts={'a':(20,120),'b':(20,20),'c':(10,10)};exhausted=set();polls=[];messages=[];stop=threading.Event()
     with tempfile.TemporaryDirectory(prefix='qfr-native-') as tmp:
         root=Path(tmp);cert=root/'cert.pem';key=root/'key.pem';serial=str(int(time.time_ns()))
@@ -110,7 +111,7 @@ def main():
             def do_GET(self):
                 if self.path=='/plugin.zip':body=archive_bytes
                 elif self.path=='/registry.json':
-                    body=json.dumps({'schema_version':2,'plugins':[{'id':'quota-first-router','name':'Quota First Router','description':'Local synthetic installation acceptance','author':'test','version':'0.1.2','repository':'https://github.com/kazimshah39/quota-first-router','install':{'type':'direct','artifacts':[{'goos':goos,'goarch':arch,'url':f'http://127.0.0.1:{self.server.server_port}/plugin.zip','sha256':hashlib.sha256(archive_bytes).hexdigest()}]}}]}).encode()
+                    body=json.dumps({'schema_version':2,'plugins':[{'id':'quota-first-router','name':'Quota First Router','description':'Local synthetic installation acceptance','author':'test','version':version,'repository':'https://github.com/kazimshah39/quota-first-router','install':{'type':'direct','artifacts':[{'goos':goos,'goarch':arch,'url':f'http://127.0.0.1:{self.server.server_port}/plugin.zip','sha256':hashlib.sha256(archive_bytes).hexdigest()}]}}]}).encode()
                 else:self.send_error(404);return
                 self.send_response(200);self.send_header('Content-Type','application/octet-stream' if self.path.endswith('.zip') else 'application/json');self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
         store=http.server.ThreadingHTTPServer(('127.0.0.1',0),Store);threading.Thread(target=store.serve_forever,daemon=True).start();servers.append(store)
@@ -163,7 +164,7 @@ def main():
             assert hashlib.sha256(Path(installed['path']).read_bytes()).hexdigest()==hashlib.sha256(library.read_bytes()).hexdigest(),'Installer library differs'
             print('Waiting for native plugin registration',flush=True)
             wait(lambda:ready('shadow'),'registration and polling')
-            defaults=status();assert defaults['version']=='0.1.2' and defaults['poll_interval']=='1m0s' and defaults['max_age']=='5m0s',defaults
+            defaults=status();assert defaults['version']==version and defaults['poll_interval']=='1m0s' and defaults['max_age']=='5m0s',defaults
             listing=json.loads(api('/v0/management/plugins'));assert all(name in json.dumps(listing) for name in ('invalid-native-fixture','wrong-machine-fixture')),'Invalid fixtures were not scanned'
             failures=[v for v in listing['plugins'] if 'fixture' in v.get('path','')]
             assert len(failures)==2 and all(not v.get('registered') for v in failures),'Invalid libraries registered'
@@ -173,7 +174,24 @@ def main():
                 try:opener.open(req);raise AssertionError('unauthenticated status')
                 except urllib.error.HTTPError as ex:assert ex.code==401
             assert inference()=='a' and status()['last_decision']['auth_id']=='b.json';configure();assert inference()=='b'
-            count=len(polls)
+            monitor_path=BASE+'/monitor';resource='/v0/resource/plugins/quota-first-router/monitor'
+            response=opener.open(f'http://127.0.0.1:{port}'+resource)
+            shell=response.read().decode();assert 'Routing monitor' in shell and 'synthetic-' not in shell and 'a.json' not in shell
+            assert response.headers.get('Cache-Control')=='no-store' and response.headers.get('X-Content-Type-Options')=='nosniff' and "frame-ancestors 'self'" in response.headers.get('Content-Security-Policy','')
+            registered=next(p for p in listing['plugins'] if p['id']=='quota-first-router')
+            assert any(menu['path']==resource for menu in registered['menus'])
+            for path in (resource,monitor_path):
+                req=urllib.request.Request(f'http://127.0.0.1:{port}'+path,data=b'{}',headers={'Authorization':'Bearer synthetic-management-key'},method='POST')
+                try:opener.open(req);raise AssertionError('Invalid monitor method accepted')
+                except urllib.error.HTTPError as ex:assert ex.code in (404,405)
+            for token in (None,'bad'):
+                req=urllib.request.Request(f'http://127.0.0.1:{port}'+monitor_path,headers={} if token is None else {'Authorization':'Bearer '+token})
+                try:opener.open(req);raise AssertionError('Unauthenticated monitor')
+                except urllib.error.HTTPError as ex:assert ex.code==401
+            monitor=json.loads(api(monitor_path));assert monitor['version']==version and len(monitor['accounts'])==3 and monitor['history']['decisions']
+            epoch=monitor['history']['epoch'];before_picks=status()['picks'];count=len(polls)
+            for _ in range(10):assert json.loads(api(monitor_path))['history']['epoch']==epoch
+            assert status()['picks']==before_picks and len(polls)==count,'Monitor reads changed routing/polling'
             for chat in (False,True):
                 for stream in (False,True):assert 'b' in inference(stream,chat)
             with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:assert list(pool.map(lambda _:inference(),range(24)))==['b']*24
@@ -192,11 +210,19 @@ def main():
                     wait(lambda:inference()=='b','bounded recovery from credential rewrite',seconds=15)
                 requests+=1;time.sleep(.1)
             if a.seconds>=65:assert len(polls)>count,'natural polling did not continue'
-            exhausted.update(['a','b']);configure();assert inference()=='c','tier descent'
+            exhausted.update(['a','b']);configure();assert json.loads(api(monitor_path))['history']['epoch']!=epoch;assert inference()=='c','tier descent'
             exhausted.clear();configure();assert inference()=='b','tier recovery'
-            api(BASE+'/enabled',{'enabled':False},'PATCH');wait(lambda:inference()=='a','disable rollback');api(BASE+'/enabled',{'enabled':True},'PATCH');wait(lambda:ready('active'),'reenable');assert inference()=='b'
+            api(BASE+'/enabled',{'enabled':False},'PATCH');wait(lambda:inference()=='a','disable rollback')
+            for path in (resource,monitor_path):
+                try:
+                    req=urllib.request.Request(f'http://127.0.0.1:{port}'+path,headers={'Authorization':'Bearer synthetic-management-key'})
+                    stopped=opener.open(req).read()
+                    assert path==monitor_path and json.loads(stopped).get('state')=='stopped','Disabled resource unexpectedly served'
+                except urllib.error.HTTPError as ex:assert ex.code==404
+            api(BASE+'/enabled',{'enabled':True},'PATCH');wait(lambda:ready('active'),'reenable');assert inference()=='b'
+            assert json.loads(api(monitor_path))['history']['epoch']!=epoch
             for id,(priority,_) in accounts.items():stored=json.loads((auths/(id+'.json')).read_text());assert stored['priority']==priority and not stored['disabled']
-            evidence={'goos':goos,'goarch':arch,'native':True,'passed':True,'cpa_version':'8.1.0','library_sha256':hashlib.sha256(library.read_bytes()).hexdigest(),'cpa_sha256':hashlib.sha256(cpa.read_bytes()).hexdigest(),'inspection':inspection,'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'soak_seconds':a.seconds,'soak_requests':requests,'safe_unknown_fallbacks':safe_fallbacks,'quota_gets':len(polls),'local_store_install':True,'archive_sha256':hashlib.sha256(archive_bytes).hexdigest(),'host_os':platform.platform(),'host_machine':platform.machine(),'go_version':subprocess.check_output([os.environ.get('GO','go'),'version'],text=True).strip(),'invalid_library_rejected':True,'wrong_arch_library_rejected':True}
+            evidence={'goos':goos,'goarch':arch,'native':True,'passed':True,'cpa_version':'8.1.0','library_sha256':hashlib.sha256(library.read_bytes()).hexdigest(),'cpa_sha256':hashlib.sha256(cpa.read_bytes()).hexdigest(),'inspection':inspection,'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'soak_seconds':a.seconds,'soak_requests':requests,'safe_unknown_fallbacks':safe_fallbacks,'quota_gets':len(polls),'local_store_install':True,'monitor_acceptance':True,'archive_sha256':hashlib.sha256(archive_bytes).hexdigest(),'host_os':platform.platform(),'host_machine':platform.machine(),'go_version':subprocess.check_output([os.environ.get('GO','go'),'version'],text=True).strip(),'invalid_library_rejected':True,'wrong_arch_library_rejected':True}
             Path(a.output).parent.mkdir(parents=True,exist_ok=True);Path(a.output).write_text(json.dumps(evidence,indent=2));print('PASS native CPA acceptance',goos,arch)
         except BaseException:
             log.flush();log.seek(0);print(log.read());raise

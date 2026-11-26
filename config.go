@@ -9,7 +9,7 @@ import (
 )
 
 const pluginID = "quota-first-router"
-const pluginVersion = "0.1.2"
+const pluginVersion = "0.2.0"
 
 type config struct {
 	Mode           string        `yaml:"mode" json:"mode"`

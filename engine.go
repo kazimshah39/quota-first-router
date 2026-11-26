@@ -32,22 +32,23 @@ type accountState struct {
 }
 
 type engine struct {
-	host    authHost
-	fetcher quotaFetcher
-	cfg     config
-	now     func() time.Time
-	mu      sync.RWMutex
-	states  map[string]accountState
-	listErr string
-	last    decision
-	picks   atomic.Uint64
-	routed  atomic.Uint64
-	failed  atomic.Bool
-	refresh sync.Mutex
+	host         authHost
+	fetcher      quotaFetcher
+	cfg          config
+	now          func() time.Time
+	mu           sync.RWMutex
+	states       map[string]accountState
+	listErr      string
+	last         decision
+	picks        atomic.Uint64
+	routed       atomic.Uint64
+	failed       atomic.Bool
+	refresh      sync.Mutex
+	observations *observation
 }
 
 func newEngine(host authHost, fetcher quotaFetcher, cfg config) *engine {
-	return &engine{host: host, fetcher: fetcher, cfg: cfg, now: time.Now, states: make(map[string]accountState)}
+	return &engine{host: host, fetcher: fetcher, cfg: cfg, now: time.Now, states: make(map[string]accountState), observations: newObservation(time.Now())}
 }
 
 func (e *engine) run(ctx context.Context) {
@@ -75,11 +76,13 @@ func (e *engine) refreshQuota(ctx context.Context) {
 		e.mu.Lock()
 		e.listErr = "credential_list_failed"
 		e.mu.Unlock()
+		e.observations.incident("", "roster", "credential_list_failed", e.now())
 		return
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].ID < entries[j].ID })
 	eligible := make(map[string]bool)
 	e.mu.Lock()
+	previousListError := e.listErr
 	e.listErr = ""
 	for _, entry := range entries {
 		provider := entry.Provider
@@ -104,6 +107,9 @@ func (e *engine) refreshQuota(ctx context.Context) {
 		}
 	}
 	e.mu.Unlock()
+	if previousListError != "" {
+		e.observations.incident("", "roster", "recovered", e.now())
+	}
 	for _, entry := range entries {
 		if ctx.Err() != nil {
 			return
@@ -122,6 +128,7 @@ func (e *engine) refreshQuota(ctx context.Context) {
 		if e.now().Before(state.NextRefresh) {
 			continue
 		}
+		previousError := state.LastError
 		snap, err := e.readQuota(ctx, entry.AuthIndex, provider)
 		if ctx.Err() != nil {
 			return
@@ -145,11 +152,15 @@ func (e *engine) refreshQuota(ctx context.Context) {
 				}
 			}
 			state.NextRefresh = now.Add(delay)
+			e.observations.incident(entry.ID, "quota", state.LastError, now)
 		} else {
 			state.Snapshot = &snap
 			state.LastError = ""
 			state.Failures = 0
 			state.NextRefresh = nextRefresh(snap, now, e.cfg.PollInterval)
+			if previousError != "" {
+				e.observations.incident(entry.ID, "quota", "recovered", now)
+			}
 		}
 		e.mu.Lock()
 		e.states[entry.ID] = state
@@ -241,6 +252,7 @@ func (e *engine) pick(req pluginapi.SchedulerPickRequest) pluginapi.SchedulerPic
 	e.mu.Lock()
 	e.last = d
 	e.mu.Unlock()
+	e.observations.recordDecision(d, req.Model, e.cfg.Mode, req.Stream, e.now())
 	e.picks.Add(1)
 	if e.cfg.Mode != "active" {
 		return pluginapi.SchedulerPickResponse{}

@@ -1,4 +1,6 @@
-# Platform support — 0.1.2
+# Platform support — published 0.1.2
+
+**Unpublished 0.2.0 monitor candidate:** six cross-build/format/export/dependency/package checks and Linux-amd64 exact-ZIP native monitor acceptance pass locally; the other five changed-feature native checks await separately approved hosted CI. Do not infer their feature acceptance from the historical 0.1.2 results below. See [monitor evidence](evidence/0.2.0/README.md).
 
 All six required targets passed genuine matching-architecture CPA 8.1.0 native acceptance in [CI run 45785056147](https://github.com/kazimshah39/quota-first-router/actions/runs/45785056147), source `ebc5d89`. Release publication/public-download/production results are tracked separately in [release status](release-status.md). Existing v0.1.0/v0.1.1 assets remain immutable Linux-amd64-only releases.
 

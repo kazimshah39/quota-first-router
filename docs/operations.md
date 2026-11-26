@@ -1,5 +1,9 @@
 # Operation and rollback
 
+## Unpublished monitor candidate
+
+See [monitor guide](monitor.md) for menu/direct paths, memory-only fallback login, public-shell/private-API split, health/reason meanings, history reset/eviction and disabled-route recovery. This read-only page does not refresh provider quota, change config or prove actual request outcomes. Production remains public v0.1.2; no candidate rollout is approved. New routes need feature-specific native/browser/publication gates before any rollout.
+
 ## Before a rollout
 
 1. Confirm CPA 8.1.0, management access, native library architecture, existing scheduler plugins, and current priorities. Do not change account tiers for this plugin.

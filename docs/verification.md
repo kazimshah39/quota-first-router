@@ -1,5 +1,9 @@
 # Verification
 
+## Unpublished 0.2.0 monitor
+
+[Feature guide](monitor.md) and [local monitor evidence](evidence/0.2.0/README.md) separate current local/backend/browser/resource checks from pending five nonlocal native checks. Existing v0.1.2 six-native passes do not validate changed feature code. Node controller checks run via `node tests/monitor_ui_test.js`; real Chrome/OMC tests remain separate.
+
 ## Compatibility and public checks
 
 Published releases target **CPA 8.1.0**, native ABI 1/schema 10, **Linux amd64/glibc 2.34+** only. Version 0.1.2 builds six targets; all six passed matching native CPA 8.1.0/store/routing acceptance in CI run 45785056147. See [platform support](platform-support.md) for exact toolchains, commands, binary/runtime minima and pending tests. The candidate pins Go 1.26.10 and baseline x86-64 instructions.

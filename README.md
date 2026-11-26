@@ -94,6 +94,10 @@ The worker reconciles the roster and reset deadlines every 30 seconds and polls 
 
 **Proxy limitation:** CPA's lifecycle configuration does not expose its global upstream proxy to this native plugin. Configure `proxy_url` explicitly when CPA uses `requests.proxy-url`. Per-account `proxy_url` is respected; otherwise Go's environment proxy policy applies. Custom account `base_url` is explicitly unsupported for quota polling and reported, never silently bypassed. Redirects are refused.
 
+## Monitor candidate (unpublished 0.2.0)
+
+The read-only **Quota First Router** plugin page shows health, cached quota, bounded scheduler choices and incidents. Public HTML is generic; all private diagnostics require management login. Choices are not actual served-account or request-success evidence. See [monitor guide](docs/monitor.md) for paths, auth, limits and lifecycle; [local evidence](docs/evidence/0.2.0/README.md) lists passed checks and pending native/release gates. Production/public v0.1.2 remains unchanged.
+
 ## Authenticated diagnostics
 
 ```text

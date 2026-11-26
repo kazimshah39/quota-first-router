@@ -76,6 +76,7 @@ jobs:
           if [ '${{ matrix.race }}' = true ]; then go test -race -count=1 ./...; else go test -count=1 ./...; echo 'Go race detector unsupported on windows/arm64; not claimed'; fi
           go vet ./...
           python3 -m unittest discover -s tests -p 'test_*.py'
+          node tests/monitor_ui_test.js
       - name: Unpack exact validated candidate and pinned CPA host
         run: |
           python3 scripts/release.py matrix --output dist/release

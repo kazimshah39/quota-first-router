@@ -14,6 +14,7 @@ test:
 	$(GO) vet ./...
 	@test -z "$$($(GO) fmt ./...)" || (echo 'Run gofmt and rerun'; exit 1)
 	python3 -m unittest discover -s tests -p 'test_*.py'
+	node tests/monitor_ui_test.js
 
 build:
 	mkdir -p $(dir $(LIBRARY))

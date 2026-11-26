@@ -32,7 +32,10 @@ def main():
     args = parser.parse_args()
     if os.environ.get('QFR_ISOLATED') != '1':
         root = Path(__file__).resolve().parents[1]
-        subprocess.run(['docker', 'run', '--rm', '--network', 'none',
+        ui_fixture = os.environ.get('QFR_UI_FIXTURE') == '1'
+        network = ['--network', 'bridge', '-p', '127.0.0.1:18319:18318', '-p', '127.0.0.1:18444:443'] if ui_fixture else ['--network', 'none']
+        subprocess.run(['docker', 'run', '--rm', *network,
+                        '-e', 'QFR_UI_FIXTURE=' + ('1' if ui_fixture else '0'),
                         '--add-host', 'chatgpt.com:127.0.0.1',
                         '-e', 'QFR_ISOLATED=1', '-e', 'SOAK_SECONDS=' + os.environ.get('SOAK_SECONDS', '0'),
                         '-v', f'{root}:/project:ro',
@@ -62,8 +65,8 @@ def main():
             self.send_response(code)
             self.send_header('Content-Type', content_type)
             self.send_header('Content-Length', str(len(raw)))
-            self.end_headers()
             try:
+                self.end_headers()
                 self.wfile.write(raw)
             except (BrokenPipeError, ConnectionResetError, ssl.SSLEOFError):
                 pass  # Expected when the synthetic cancellation client disconnects.
@@ -92,6 +95,12 @@ def main():
                                      'reset_after_seconds': 86400}}})
 
         def do_POST(self):
+            nonlocal quota_error
+            if self.path == '/fixture' and os.environ.get('QFR_UI_FIXTURE') == '1':
+                command = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+                quota_error = command.get('quota_error', False)
+                exhausted.clear(); exhausted.update(command.get('exhausted', []))
+                return self.send(200, {'ok':True})
             if self.path != '/backend-api/codex/responses':
                 errors.append('unexpected request path ' + self.path)
                 return self.send(404, {})
@@ -140,10 +149,10 @@ def main():
         config = root / 'config.yaml'
         config.write_text(f'''config-version: 8
 server:
-  host: 127.0.0.1
+  host: {'0.0.0.0' if os.environ.get('QFR_UI_FIXTURE') == '1' else '127.0.0.1'}
   port: 18318
 management:
-  allow-remote: false
+  allow-remote: {'true' if os.environ.get('QFR_UI_FIXTURE') == '1' else 'false'}
   secret-key: synthetic-management-key
   disable-control-panel: true
 oauth:
@@ -237,6 +246,39 @@ plugins:
         try:
             wait(lambda: ready('shadow'), 'startup')
             wait(lambda: any(m['id'] == MODEL for m in json.loads(api('/v1/models', management=False))['data']), 'model registration')
+            # Native resource menu and protected JSON must remain separate.
+            for path in [BASE + '/status', BASE + '/monitor']:
+                try:
+                    opener.open('http://127.0.0.1:18318' + path)
+                    raise AssertionError('unauthenticated diagnostics allowed')
+                except urllib.error.HTTPError as exc:
+                    assert exc.code == 401
+            resource = '/v0/resource/plugins/' + PLUGIN + '/monitor'
+            response = opener.open('http://127.0.0.1:18318' + resource)
+            assert response.headers.get('Cache-Control')=='no-store' and response.headers.get('X-Content-Type-Options')=='nosniff'
+            assert "frame-ancestors 'self'" in response.headers.get('Content-Security-Policy','')
+            shell = response.read().decode()
+            assert 'Routing monitor' in shell and 'synthetic-client-key' not in shell and 'a-later.json' not in shell
+            listing = json.loads(api('/v0/management/plugins'))
+            registered = next(p for p in listing['plugins'] if p['id'] == PLUGIN)
+            assert any(menu['path'] == resource for menu in registered['menus']), registered
+            before_monitor = len(quota_calls), len(upstream_requests), status()['picks']
+            for _ in range(10):
+                monitor = json.loads(api(BASE + '/monitor'))
+                assert monitor['version'] and len(monitor['accounts']) == 4
+            assert before_monitor == (len(quota_calls), len(upstream_requests), status()['picks']), 'monitor GET triggered polling, inference or selection'
+            for method,path in [('POST',resource),('POST',BASE+'/monitor')]:
+                try:api(path,{},method);raise AssertionError('Invalid method accepted')
+                except urllib.error.HTTPError as exc:assert exc.code in (404,405)
+            epoch=monitor['history']['epoch']
+            if os.environ.get('QFR_UI_FIXTURE') == '1':
+                configure()
+                assert message() == 'b-sooner'
+                print('UI_FIXTURE_READY', flush=True)
+                stopped = threading.Event()
+                signal.signal(signal.SIGTERM, lambda *_: stopped.set())
+                stopped.wait()
+                return
             # Management routes must retain host authentication.
             try:
                 opener.open('http://127.0.0.1:18318' + BASE + '/status')
@@ -247,6 +289,7 @@ plugins:
             assert status()['last_decision']['auth_id'] == 'b-sooner.json'
             assert len(status()['last_decision']['candidates']) == 4, 'all tiers not offered'
             configure()
+            assert json.loads(api(BASE+'/monitor'))['history']['epoch']!=epoch,'History epoch did not reset'
             # Explicit operator pinning wins over plugin ordering.
             verify = json.loads(api('/v8/management/credentials/verify', {'name': 'a-later.json', 'model': MODEL}))
             assert verify['verified'], verify
@@ -278,6 +321,11 @@ plugins:
                     assert all(any(account in r for account in ['a-later', 'b-sooner', 'c-third']) for r in replies), 'soak selected outside usable top tier'
                     if not all('b-sooner' in r for r in replies):
                         print('SOAK fallback observation', json.dumps(status()), flush=True)
+                    raw_monitor=api(BASE + '/monitor')
+                    assert len(raw_monitor)<=8*1024*1024,'Monitor response exceeds cap'
+                    monitor = json.loads(raw_monitor)
+                    assert not monitor['worker_failed'], 'worker failed during soak'
+                    assert len(monitor['history']['decisions']) <= 200 and len(monitor['history']['incidents']) <= 200
                     rss_samples.append(rss())
                     soak_requests += 8
                     time.sleep(.2)
@@ -285,6 +333,8 @@ plugins:
                 assert len(quota_calls) > before, 'background polling did not occur during soak'
                 assert max(rss_samples) < 512*1024, 'RSS exceeded 512MiB budget'
                 assert max(rss_samples[-min(100,len(rss_samples)):])-min(rss_samples[:min(100,len(rss_samples))]) < 128*1024, 'RSS growth exceeded 128MiB'
+                assert monitor['history']['decision_evictions'] > 0, 'decision history did not roll over'
+                print(f'PASS monitor rollover {monitor["history"]["decision_evictions"]} evicted decisions')
                 print(f'PASS soak: {soak_requests} mixed protocol/stream requests in {soak_seconds} seconds; background polling continued; RSS KiB min={min(rss_samples)} max={max(rss_samples)} final={rss_samples[-1]}')
             exhausted.add('b-sooner')
             configure()

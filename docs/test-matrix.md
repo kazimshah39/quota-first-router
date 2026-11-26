@@ -1,5 +1,9 @@
 # Comprehensive validation matrix
 
+## Unpublished monitor candidate
+
+See [0.2.0 local monitor evidence](evidence/0.2.0/README.md): bounded/epoch/redaction/concurrent snapshot Go tests, Node theme/logout-race/hidden/controller tests, actual CPA resource/menu/auth/monitor no-side-effect/lifecycle checks, real Linux Chrome standalone/OMC login and rendering states, five-minute 3,504-request monitor/routing/history soak, six genuine cross-builds and Linux exact-ZIP native monitor checks. Five nonlocal feature-native results remain pending remote approval; no feature publication or production activation is claimed.
+
 Historical public-release target: CPA 8.1.0 (`69607634`), Linux amd64/glibc 2.34+. Local 0.1.2 six-target build and native acceptance status: [platform evidence](platform-support.md). All six genuine matching native results passed in CI 45785056147 and are recorded under docs/evidence/0.1.2/. Tests use synthetic credentials unless explicitly described as live. A pass is not a claim that every provider behavior or future CPA version is supported.
 
 ## Automated coverage
