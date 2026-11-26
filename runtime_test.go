@@ -14,7 +14,7 @@ import (
 
 func TestReleaseDefaults(t *testing.T) {
 	cfg, err := decodeConfig(nil)
-	if err != nil || cfg.Mode != "shadow" || cfg.PollInterval != time.Minute || cfg.MaxAge != 5*time.Minute || cfg.RequestTimeout != 10*time.Second {
+	if err != nil || cfg.PollInterval != time.Minute || cfg.MaxAge != 5*time.Minute || cfg.RequestTimeout != 10*time.Second {
 		t.Fatalf("defaults: %+v %v", cfg, err)
 	}
 	for _, raw := range []string{"enabled: true", "mode: active"} {
@@ -37,10 +37,18 @@ func TestRuntimeProtocol(t *testing.T) {
 	if !strings.Contains(string(env.Result), `"scheduler_across_priorities":true`) {
 		t.Fatal(string(raw))
 	}
+	if strings.Contains(string(env.Result), `"name":"mode"`) {
+		t.Fatal("legacy mode advertised in plugin configuration")
+	}
 	for _, method := range []string{pluginabi.MethodPluginRegister, pluginabi.MethodPluginReconfigure} {
-		if !strings.Contains(string(p.handle(method, []byte(`{"config_yaml":"bW9kZTogYWN0aXZlCg=="}`))), `"ok":true`) {
+		if !strings.Contains(string(p.handle(method, []byte(`{}`))), `"ok":true`) {
 			t.Fatal(method)
 		}
+	}
+	legacy, _ := json.Marshal(map[string][]byte{"config_yaml": []byte("mode: shadow\n")})
+	unconfigured := &pluginRuntime{host: h}
+	if got := string(unconfigured.handle(pluginabi.MethodPluginRegister, legacy)); !strings.Contains(got, "invalid_configuration") || unconfigured.active.Load() != nil {
+		t.Fatal("legacy shadow must not silently route", got)
 	}
 	if !strings.Contains(string(p.handle(pluginabi.MethodManagementRegister, nil)), statusPath) {
 		t.Fatal("missing status route")

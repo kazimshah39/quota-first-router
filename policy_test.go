@@ -85,17 +85,12 @@ func TestPolicy(t *testing.T) {
 		})
 	}
 }
-func TestShadowAndActive(t *testing.T) {
+func TestEnabledRouterSelectsAndFailedWorkerDelegates(t *testing.T) {
 	cfg, _ := decodeConfig(nil)
 	e := newEngine(nil, nil, cfg)
 	e.now = func() time.Time { return testNow }
 	e.states = map[string]accountState{"a": readyState(20, 100), "b": readyState(120, 100), "d": readyState(10, 10)}
 	r := e.pick(fixtureRequest())
-	if r.Handled || len(r.ExcludeCandidates) > 0 {
-		t.Fatal("shadow changed routing")
-	}
-	e.cfg.Mode = "active"
-	r = e.pick(fixtureRequest())
 	if !r.Handled || r.AuthID != "d" {
 		t.Fatalf("%+v", r)
 	}

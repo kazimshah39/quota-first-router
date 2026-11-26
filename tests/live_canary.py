@@ -1,4 +1,4 @@
-"""Explicitly authorized, bounded shadow -> active -> disable live canary.
+"""Explicitly authorized, bounded enable -> disable live canary.
 Never prints secrets or consumes the shared usage queue. Correlates requests with
 read-only Oh My CPA usage records by a unique User-Agent.
 """
@@ -108,7 +108,7 @@ def main():
         destination = Path(installed['path'])
         assert destination.is_file(), 'Install a verified release before the canary'
         report['artifact_sha256'] = hashlib.sha256(destination.read_bytes()).hexdigest()
-        settings = {'enabled': True, 'priority': 100, 'mode': 'shadow', 'poll_interval': '1m', 'max_age': '5m', 'request_timeout': '10s'}
+        settings = {'enabled': True, 'priority': 100, 'mode': None, 'poll_interval': '1m', 'max_age': '5m', 'request_timeout': '10s'}
         global_proxy = original.get('requests', {}).get('proxy-url')
         if global_proxy:
             settings['proxy_url'] = global_proxy
@@ -116,17 +116,9 @@ def main():
         api(BASE + '/config', settings, 'PATCH')
         def ready():
             s = status()
-            return s if s.get('mode') == 'shadow' and s.get('accounts') and all(a.get('quota') for a in s['accounts'].values()) else None
-        s = wait(ready, 'shadow quota discovery', 150)
+            return s if s.get('accounts') and all(a.get('quota') for a in s['accounts'].values()) else None
+        s = wait(ready, 'enabled quota discovery', 150)
         report['quota_observations'] = s['accounts']
-        shadow = inference('shadow')
-        s = status()
-        shadow['proposal'] = s['last_decision']
-        assert s['picks'] > 0 and not s['routed'], 'Shadow changed routing or scheduler not invoked'
-        report['requests'].append(shadow)
-        assert shadow['proposal'].get('auth_id'), 'Shadow has no trustworthy proposed account'
-        api(BASE + '/config', {'mode': 'active'}, 'PATCH')
-        wait(lambda: status()['mode'] == 'active' and all(a.get('quota') for a in status()['accounts'].values()), 'active ready')
         active = inference('active')
         s = status()
         active['proposal'] = s['last_decision']
@@ -159,7 +151,7 @@ def main():
         os.chmod(backup / 'report.json', 0o600)
     assert report['priorities_and_enabled_preserved'], 'Routing fields changed'
     assert 'rollback_request_error' not in report, 'Rollback request failed'
-    print('PASS shadow/active/rollback live canary; report:', backup / 'report.json')
+    print('PASS enable/disable live canary; report:', backup / 'report.json')
     print('Plugin remains installed but disabled; account tiers unchanged.')
 
 

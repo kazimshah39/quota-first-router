@@ -48,7 +48,7 @@ async function main() {
   assert.equal(element('private').hidden,true,'late response must not restore logged-out diagnostics');
   assert.equal(element('history-note').textContent,'');
   const quota = {plan_type:'plus',five_hour:{utilization:20},seven_day:{utilization:62},model_windows:{'gpt-example':[{utilization:100}]}};
-  const populated = {...snapshot, total_accounts:4, fresh_accounts:3, history:{...snapshot.history, decisions:[{mode:'shadow', model:'gpt-example', decision:{auth_id:'primary', candidates:[{auth_id:'primary', priority:20, reason:'ready'}]}}]}, accounts:[
+  const populated = {...snapshot, total_accounts:4, fresh_accounts:3, history:{...snapshot.history, decisions:[{model:'gpt-example', decision:{auth_id:'primary', candidates:[{auth_id:'primary', priority:20, reason:'ready'}]}}]}, accounts:[
     {id:'primary', availability:'ready', quota},
     {id:'cached', availability:'stale', quota:{five_hour:{utilization:0}}},
     {id:'monthly', availability:'ready', quota:{five_hour_absent:true,seven_day:{utilization:76}}},
@@ -61,7 +61,7 @@ async function main() {
   assert.equal(list.children[3].findAll('progress').length,0,'unknown is not 0%');
   assert.match(list.children[2].textContent,/Monthly allowance/);
   assert.doesNotMatch(list.children[2].textContent,/5 hours/);
-  assert.match(list.children[0].textContent,/Would select/);
+  assert.match(list.children[0].textContent,/Selected/);
   assert.doesNotMatch(list.children[0].textContent,/Quota usable|Last offered/);
   assert.equal(element('health-note').hidden,true);
   assert.equal(element('history-note').hidden,true);

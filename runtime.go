@@ -134,7 +134,6 @@ func registration() any {
 		pluginabi.SchemaVersion,
 		pluginapi.Metadata{Name: pluginID, Version: pluginVersion, Author: "kazimshah39", GitHubRepository: "https://github.com/kazimshah39/quota-first-router",
 			ConfigFields: []pluginapi.ConfigField{
-				{Name: "mode", Type: pluginapi.ConfigFieldTypeEnum, Default: "shadow", EnumValues: []string{"shadow", "active"}, Description: "Shadow records decisions without changing routing. Active selects the nearest five-hour reset within the highest usable tier."},
 				{Name: "poll_interval", Type: pluginapi.ConfigFieldTypeString, Default: "1m", Description: "Quota refresh interval, 1m to 1h. Default 1m."},
 				{Name: "max_age", Type: pluginapi.ConfigFieldTypeString, Default: "5m", Description: "Maximum quota cache age. Default 5m."},
 				{Name: "proxy_url", Type: pluginapi.ConfigFieldTypeString, Description: "Set to CPA requests.proxy-url if configured; per-account proxy overrides this."},

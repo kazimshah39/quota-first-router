@@ -78,7 +78,7 @@
   const markers = node('div', undefined, 'account-markers');
   if (note && record.decision.auth_id === a.id) {
    account.dataset.selected = 'true';
-   markers.append(node('span', record.mode === 'active' ? 'Selected' : 'Would select', 'badge'));
+   markers.append(node('span', 'Selected', 'badge'));
   }
   if (exhausted) {
    account.dataset.exhausted = 'true';
@@ -120,7 +120,7 @@
   $('health').textContent={healthy:'Quota checks healthy',starting:'Waiting for quota',no_accounts:'No eligible accounts',degraded:'Needs attention',failed:'Worker failed'}[data.state]||data.state;
   $('health').className=data.state==='healthy'?'good':data.state==='failed'?'bad':'warning';$('health-note').textContent=data.worker_failed?'The polling worker failed. Check host logs and reconfigure or reload the plugin.':data.list_error?'Credential roster could not be read.':data.state==='degraded'?'Check the quota warnings below.':'';
   $('health-note').hidden = !$('health-note').textContent;
-  $('summary').replaceChildren();for(const [label,value] of [['Mode / version',`${data.mode} · v${data.version}`],['Fresh quota',`${data.fresh_accounts} / ${data.total_accounts}`]]){const pair=node('div');pair.append(node('dt',label),node('dd',value));$('summary').append(pair);}
+  $('summary').replaceChildren();for(const [label,value] of [['Version',`v${data.version}`],['Fresh quota',`${data.fresh_accounts} / ${data.total_accounts}`]]){const pair=node('div');pair.append(node('dt',label),node('dd',value));$('summary').append(pair);}
   $('order-note').textContent = record ? `Tier order at ${stamp(record.at)} · ${record.model || 'Unknown model'}` : 'Tier order appears after the first request.';
   $('coverage').hidden = !(data.accounts_truncated || record?.truncated);
   $('coverage').textContent = `${data.accounts_truncated||0} accounts and ${record?.truncated||0} candidate details omitted by safety limits.`;
@@ -134,9 +134,9 @@
   if (focusedID !== null) [...list.children].find(card => card.dataset.accountId === focusedID)?.querySelector('summary').focus({preventScroll:true});
   if (!accounts.length) empty(list, search ? 'No matching accounts.' : 'No eligible Codex accounts have been discovered.');
   $('activity-count').textContent = h.incidents.length ? `· ${h.incidents.length} ${h.incidents.length === 1 ? 'incident' : 'incidents'}` : '';
-  $('latest').textContent=record?`${record.mode==='shadow'?'Shadow proposal':'Scheduler choice'}: ${d.auth_id||'delegated to CPA'} · ${record.model} · ${record.stream?'streaming':'non-streaming'} · ${stamp(record.at)} · ${reason(d.reason)}`:'No scheduler decisions yet. Send ordinary traffic through CPA to observe selections.';
+  $('latest').textContent=record?`Scheduler choice: ${d.auth_id||'delegated to CPA'} · ${record.model} · ${record.stream?'streaming':'non-streaming'} · ${stamp(record.at)} · ${reason(d.reason)}`:'No scheduler decisions yet. Send ordinary traffic through CPA to observe selections.';
   $('incidents').replaceChildren();for(const i of h.incidents.filter(i=>!search||i.account?.toLowerCase().includes(search))){const li=node('li');li.append(node('time',stamp(i.last_at)),node('strong',i.code==='recovered'?'Recovered':i.code,i.code==='recovered'?'good':'warning'),node('span',`${i.account||'Plugin'} · ${i.kind} · ${i.count} occurrence(s); first ${stamp(i.at)}`,'detail'));$('incidents').append(li);}if(!$('incidents').children.length)empty($('incidents'),'No recorded problems or recoveries in this history.');
-  $('decisions').replaceChildren();for(const r of h.decisions.filter(r=>(!selectedModel||r.model===selectedModel)&&(!search||(r.decision.auth_id||'').toLowerCase().includes(search)))){const li=node('li');li.append(node('time',`${stamp(r.at)} · #${r.sequence}`),node('strong',r.decision.auth_id||'Delegated to CPA'),node('span',`${r.model} · ${r.mode} · ${r.stream?'stream':'non-stream'} · ${reason(r.decision.reason)}`,'detail'));$('decisions').append(li);}if(!$('decisions').children.length)empty($('decisions'),'No matching scheduler decisions.');
+  $('decisions').replaceChildren();for(const r of h.decisions.filter(r=>(!selectedModel||r.model===selectedModel)&&(!search||(r.decision.auth_id||'').toLowerCase().includes(search)))){const li=node('li');li.append(node('time',`${stamp(r.at)} · #${r.sequence}`),node('strong',r.decision.auth_id||'Delegated to CPA'),node('span',`${r.model} · ${r.stream?'stream':'non-stream'} · ${reason(r.decision.reason)}`,'detail'));$('decisions').append(li);}if(!$('decisions').children.length)empty($('decisions'),'No matching scheduler decisions.');
   const omittedHistory = [];
   if (h.decision_evictions) omittedHistory.push(`${h.decision_evictions} older decisions removed`);
   if (h.incident_evictions) omittedHistory.push(`${h.incident_evictions} older incidents removed`);

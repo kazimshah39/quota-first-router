@@ -208,13 +208,13 @@ func TestRefreshLifecycle(t *testing.T) {
 	}
 }
 func TestConfiguration(t *testing.T) {
-	for _, raw := range []string{"mode: nope", "poll_interval: 0s", "max_age: 1s", "request_timeout: 31s", "mode: ["} {
+	for _, raw := range []string{"mode: shadow", "mode: nope", "poll_interval: 0s", "max_age: 1s", "request_timeout: 31s", "mode: ["} {
 		if _, err := decodeConfig([]byte(raw)); err == nil {
 			t.Fatal(raw)
 		}
 	}
-	cfg, err := decodeConfig([]byte("mode: active\npoll_interval: 1m\nmax_age: 2m\n"))
-	if err != nil || cfg.Mode != "active" {
+	cfg, err := decodeConfig([]byte("poll_interval: 1m\nmax_age: 2m\n"))
+	if err != nil || cfg.MaxAge != 2*time.Minute {
 		t.Fatal(err)
 	}
 }

@@ -120,7 +120,7 @@ def main():
         with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
         proxyurl='http://127.0.0.1:'+str(proxy.server_port)
         # JSON is also a valid YAML document and quotes native Windows paths safely.
-        config={'config-version':8,'server':{'host':'127.0.0.1','port':port},'management':{'secret-key':'synthetic-management-key','allow-remote':False,'disable-control-panel':True},'oauth':{'auth-dir':str(auths)},'access':{'api-keys':['synthetic-client-key']},'routing':{'strategy':'fill-first','session-affinity':False},'plugins':{'enabled':True,'dir':str(plugins),'configs':{'quota-first-router':{'enabled':True,'priority':100,'mode':'shadow','proxy_url':proxyurl}}}}
+        config={'config-version':8,'server':{'host':'127.0.0.1','port':port},'management':{'secret-key':'synthetic-management-key','allow-remote':False,'disable-control-panel':True},'oauth':{'auth-dir':str(auths)},'access':{'api-keys':['synthetic-client-key']},'routing':{'strategy':'fill-first','session-affinity':False},'plugins':{'enabled':True,'dir':str(plugins),'configs':{'quota-first-router':{'enabled':True,'priority':100,'proxy_url':proxyurl}}}}
         config['plugins']['store-sources']=[source]
         config['plugins']['store-auth']=[{'match':f'http://127.0.0.1:{store.server_port}','allow-insecure':True}]
         configpath=root/'config.yaml';configpath.write_text(json.dumps(config));env=dict(os.environ,SSL_CERT_FILE=str(cert));env={k:v for k,v in env.items() if not k.lower().endswith('_proxy')};log=(root/'cpa.log').open('w+')
@@ -141,12 +141,12 @@ def main():
                 except (OSError,ValueError,KeyError,RuntimeError) as ex:last=repr(ex)
                 assert proc.poll() is None,'CPA exited';time.sleep(.2)
             raise AssertionError(label+': '+str(last))
-        def ready(mode):
-            s=status();return s['mode']==mode and len(s['accounts'])==3 and all(x.get('quota') for x in s['accounts'].values())
+        def ready():
+            s=status();return len(s['accounts'])==3 and all(x.get('quota') for x in s['accounts'].values())
         generation=0
-        def configure(mode='active'):
+        def configure():
             nonlocal generation
-            generation+=1;interval='1m' if generation%2 else '2m';api(BASE+'/config',{'mode':mode,'poll_interval':interval},'PATCH');wait(lambda:ready(mode) and status()['poll_interval']==interval+'0s','refresh')
+            generation+=1;interval='2m' if generation%2 else '1m';api(BASE+'/config',{'poll_interval':interval},'PATCH');wait(lambda:ready() and status()['poll_interval']==interval+'0s','refresh')
         def inference(stream=False,chat=False):
             body={'model':MODEL,'stream':stream};body.update({'messages':[{'role':'user','content':'Synthetic'}]} if chat else {'input':'Synthetic'})
             raw=api('/v1/chat/completions' if chat else '/v1/responses',body,client=True)
@@ -163,7 +163,7 @@ def main():
             installed=json.loads(api('/v0/management/plugin-store/quota-first-router/install?'+urllib.parse.urlencode({'source':entry['source_id']}),{}))
             assert hashlib.sha256(Path(installed['path']).read_bytes()).hexdigest()==hashlib.sha256(library.read_bytes()).hexdigest(),'Installer library differs'
             print('Waiting for native plugin registration',flush=True)
-            wait(lambda:ready('shadow'),'registration and polling')
+            wait(ready,'registration and polling')
             defaults=status();assert defaults['version']==version and defaults['poll_interval']=='1m0s' and defaults['max_age']=='5m0s',defaults
             listing=json.loads(api('/v0/management/plugins'));assert all(name in json.dumps(listing) for name in ('invalid-native-fixture','wrong-machine-fixture')),'Invalid fixtures were not scanned'
             failures=[v for v in listing['plugins'] if 'fixture' in v.get('path','')]
@@ -173,7 +173,7 @@ def main():
                 req=urllib.request.Request(f'http://127.0.0.1:{port}'+BASE+'/status',headers={} if token is None else {'Authorization':'Bearer '+token})
                 try:opener.open(req);raise AssertionError('unauthenticated status')
                 except urllib.error.HTTPError as ex:assert ex.code==401
-            assert inference()=='a' and status()['last_decision']['auth_id']=='b.json';configure();assert inference()=='b'
+            assert inference()=='b' and status()['last_decision']['auth_id']=='b.json'
             monitor_path=BASE+'/monitor';resource='/v0/resource/plugins/quota-first-router/monitor'
             response=opener.open(f'http://127.0.0.1:{port}'+resource)
             shell=response.read().decode();assert 'Routing monitor' in shell and 'synthetic-' not in shell and 'a.json' not in shell
@@ -219,7 +219,7 @@ def main():
                     stopped=opener.open(req).read()
                     assert path==monitor_path and json.loads(stopped).get('state')=='stopped','Disabled resource unexpectedly served'
                 except urllib.error.HTTPError as ex:assert ex.code==404
-            api(BASE+'/enabled',{'enabled':True},'PATCH');wait(lambda:ready('active'),'reenable');assert inference()=='b'
+            api(BASE+'/enabled',{'enabled':True},'PATCH');wait(ready,'reenable');assert inference()=='b'
             assert json.loads(api(monitor_path))['history']['epoch']!=epoch
             for id,(priority,_) in accounts.items():stored=json.loads((auths/(id+'.json')).read_text());assert stored['priority']==priority and not stored['disabled']
             evidence={'goos':goos,'goarch':arch,'native':True,'passed':True,'cpa_version':'8.1.0','library_sha256':hashlib.sha256(library.read_bytes()).hexdigest(),'cpa_sha256':hashlib.sha256(cpa.read_bytes()).hexdigest(),'inspection':inspection,'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'soak_seconds':a.seconds,'soak_requests':requests,'safe_unknown_fallbacks':safe_fallbacks,'quota_gets':len(polls),'local_store_install':True,'monitor_acceptance':True,'archive_sha256':hashlib.sha256(archive_bytes).hexdigest(),'host_os':platform.platform(),'host_machine':platform.machine(),'go_version':subprocess.check_output([os.environ.get('GO','go'),'version'],text=True).strip(),'invalid_library_rejected':True,'wrong_arch_library_rejected':True}

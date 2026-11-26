@@ -257,11 +257,8 @@ func (e *engine) pick(req pluginapi.SchedulerPickRequest) pluginapi.SchedulerPic
 	e.mu.Lock()
 	e.last = d
 	e.mu.Unlock()
-	e.observations.recordDecision(d, req.Model, e.cfg.Mode, req.Stream, e.now())
+	e.observations.recordDecision(d, req.Model, req.Stream, e.now())
 	e.picks.Add(1)
-	if e.cfg.Mode != "active" {
-		return pluginapi.SchedulerPickResponse{}
-	}
 	if d.AuthID == "" {
 		return pluginapi.SchedulerPickResponse{ExcludeCandidates: d.Excluded}
 	}
@@ -277,8 +274,9 @@ func (e *engine) status() any {
 		accounts[id] = state
 	}
 	return struct {
-		Version      string                  `json:"version"`
-		Policy       string                  `json:"selection_policy"`
+		Version string `json:"version"`
+		Policy  string `json:"selection_policy"`
+		// Compatibility for existing diagnostic clients; not a configurable mode.
 		Mode         string                  `json:"mode"`
 		PollInterval string                  `json:"poll_interval"`
 		MaxAge       string                  `json:"max_age"`
@@ -288,5 +286,5 @@ func (e *engine) status() any {
 		Picks        uint64                  `json:"picks"`
 		Routed       uint64                  `json:"routed"`
 		WorkerFailed bool                    `json:"worker_failed"`
-	}{pluginVersion, "tier_then_five_hour_reset", e.cfg.Mode, e.cfg.PollInterval.String(), e.cfg.MaxAge.String(), accounts, e.listErr, e.last, e.picks.Load(), e.routed.Load(), e.failed.Load()}
+	}{pluginVersion, "tier_then_five_hour_reset", "active", e.cfg.PollInterval.String(), e.cfg.MaxAge.String(), accounts, e.listErr, e.last, e.picks.Load(), e.routed.Load(), e.failed.Load()}
 }

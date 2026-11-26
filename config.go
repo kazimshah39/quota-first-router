@@ -12,7 +12,6 @@ const pluginID = "quota-first-router"
 const pluginVersion = "0.2.0"
 
 type config struct {
-	Mode           string        `yaml:"mode" json:"mode"`
 	PollInterval   time.Duration `yaml:"poll_interval" json:"-"`
 	MaxAge         time.Duration `yaml:"max_age" json:"-"`
 	RequestTimeout time.Duration `yaml:"request_timeout" json:"-"`
@@ -22,15 +21,20 @@ type config struct {
 }
 
 func decodeConfig(raw []byte) (config, error) {
-	cfg := config{Mode: "shadow", PollInterval: time.Minute, MaxAge: 5 * time.Minute, RequestTimeout: 10 * time.Second}
+	input := struct {
+		config     `yaml:",inline"`
+		LegacyMode string `yaml:"mode"`
+	}{config: config{PollInterval: time.Minute, MaxAge: 5 * time.Minute, RequestTimeout: 10 * time.Second}}
 	if len(raw) != 0 {
-		if err := yaml.Unmarshal(raw, &cfg); err != nil {
+		if err := yaml.Unmarshal(raw, &input); err != nil {
 			return config{}, errors.New("invalid plugin configuration")
 		}
 	}
-	if cfg.Mode != "shadow" && cfg.Mode != "active" {
-		return config{}, errors.New("mode must be shadow or active")
+	// Do not silently start routing for installations explicitly using shadow.
+	if input.LegacyMode != "" && input.LegacyMode != "active" {
+		return config{}, errors.New("legacy mode must be removed before enabling the plugin")
 	}
+	cfg := input.config
 	if cfg.PollInterval < time.Minute || cfg.PollInterval > time.Hour {
 		return config{}, errors.New("poll_interval must be between 1m and 1h")
 	}

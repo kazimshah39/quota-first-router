@@ -172,7 +172,6 @@ plugins:
     {PLUGIN}:
       enabled: true
       priority: 100
-      mode: shadow
     test-scheduler:
       enabled: false
       priority: 200
@@ -213,18 +212,18 @@ plugins:
                 time.sleep(.1)
             raise AssertionError(label + ': ' + repr(last))
 
-        def ready(mode):
+        def ready():
             s = status()
-            return s['mode'] == mode and len(s['accounts']) == 4 and all(a.get('quota') for a in s['accounts'].values())
+            return len(s['accounts']) == 4 and all(a.get('quota') for a in s['accounts'].values())
 
         generation = 0
 
-        def configure(mode='active'):
+        def configure():
             nonlocal generation
             generation += 1
-            interval = '1m' if generation % 2 else '2m'
-            api(BASE + '/config', {'mode': mode, 'poll_interval': interval}, 'PATCH')
-            wait(lambda: ready(mode) and status()['poll_interval'] == interval + '0s', 'quota refresh and mode ' + mode)
+            interval = '2m' if generation % 2 else '1m'
+            api(BASE + '/config', {'poll_interval': interval}, 'PATCH')
+            wait(lambda: ready() and status()['poll_interval'] == interval + '0s', 'quota refresh')
 
         def chat(stream=False):
             raw = api('/v1/chat/completions', {'model': MODEL, 'messages': [{'role':'user','content':'Synthetic chat check'}], 'stream':stream}, management=False)
@@ -244,7 +243,7 @@ plugins:
             return raw.decode() if stream else json.loads(raw)['output'][0]['content'][0]['text']
 
         try:
-            wait(lambda: ready('shadow'), 'startup')
+            wait(ready, 'startup')
             wait(lambda: any(m['id'] == MODEL for m in json.loads(api('/v1/models', management=False))['data']), 'model registration')
             # Native resource menu and protected JSON must remain separate.
             for path in [BASE + '/status', BASE + '/monitor']:
@@ -262,6 +261,7 @@ plugins:
             listing = json.loads(api('/v0/management/plugins'))
             registered = next(p for p in listing['plugins'] if p['id'] == PLUGIN)
             assert any(menu['path'] == resource for menu in registered['menus']), registered
+            assert all(field['name'] != 'mode' for field in registered['config_fields']), 'legacy mode still advertised'
             before_monitor = len(quota_calls), len(upstream_requests), status()['picks']
             for _ in range(10):
                 monitor = json.loads(api(BASE + '/monitor'))
@@ -285,7 +285,7 @@ plugins:
                 raise AssertionError('unauthenticated status allowed')
             except urllib.error.HTTPError as exc:
                 assert exc.code == 401
-            assert message() == 'a-later', 'shadow changed built-in fill-first'
+            assert message() == 'b-sooner', 'enabled router did not select by quota without mode settings'
             assert status()['last_decision']['auth_id'] == 'b-sooner.json'
             assert len(status()['last_decision']['candidates']) == 4, 'all tiers not offered'
             configure()
@@ -360,7 +360,7 @@ plugins:
             configure()
             assert message() == 'c-third', 'reset rollover'
             quota_error = True
-            api(BASE + '/config', {'mode': 'active', 'poll_interval': '3m'}, 'PATCH')
+            api(BASE + '/config', {'poll_interval': '3m'}, 'PATCH')
             wait(lambda: all(s.get('last_error') == 'quota_http_503' for s in status()['accounts'].values()), 'quota error')
             assert message() == 'a-later', 'unknown quota did not delegate to highest tier'
             quota_error = False
@@ -401,7 +401,17 @@ plugins:
                 configure()
                 wait(lambda: message() == 'b-sooner', f'upstream {code} recovery', timeout=75)
             api(BASE + '/enabled', {'enabled': False}, 'PATCH')
-            wait(lambda: message() == 'a-later', 'disable rollback')
+            wait(lambda: message() == 'a-later', 'disable restores CPA fill-first')
+            assert next(p for p in json.loads(api('/v0/management/plugins'))['plugins'] if p['id'] == PLUGIN)['effective_enabled'] is False
+            api(BASE + '/config', {'mode': 'shadow'}, 'PATCH')
+            api(BASE + '/enabled', {'enabled': True}, 'PATCH')
+            assert message() == 'a-later', 'unmigrated shadow configuration started routing'
+            api(BASE + '/config', {'mode': None, 'enabled': False}, 'PATCH')
+            assert 'mode' not in json.loads(api(BASE + '/config'))
+            assert message() == 'a-later', 'disabled migration started routing'
+            api(BASE + '/enabled', {'enabled': True}, 'PATCH')
+            wait(ready, 'reenable starts quota polling')
+            assert message() == 'c-third', 'reenable did not select next usable account after synthetic 401'
             for account, (priority, _) in accounts.items():
                 stored = json.loads((auths / (account + '.json')).read_text())
                 assert stored['priority'] == priority and not stored['disabled'], 'credentials changed'
@@ -410,7 +420,7 @@ plugins:
             log.seek(0)
             logs = log.read()
             assert 'synthetic-a-later' not in logs, 'credential leaked'
-            print('PASS CPA 8.1.0: authenticated status, shadow, active, all-tier candidates, streaming, '
+            print('PASS CPA 8.1.0: authenticated status, enabled routing, all-tier candidates, streaming, '
                   '24 concurrent requests, no request-path polling, five-hour/weekly exhaustion, '
                   'lower-tier failover, all-empty no upstream, recovery, rollover, unknown quota fallback, '
                   '500/502/503/429/401 failover, tool payloads, client cancellation, pinning, model eligibility, disable/reenable filtering, competing scheduler precedence, '

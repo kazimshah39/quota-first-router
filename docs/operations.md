@@ -2,7 +2,7 @@
 
 ## Unpublished monitor candidate
 
-See [monitor guide](monitor.md) for menu/direct paths, memory-only fallback login, public-shell/private-API split, health/reason meanings, history reset/eviction and disabled-route recovery. This read-only page does not refresh provider quota, change config or prove actual request outcomes. Production remains public v0.1.2; no candidate rollout is approved. New routes need feature-specific native/browser/publication gates before any rollout.
+See [monitor guide](monitor.md) for menu/direct paths, memory-only fallback login, public-shell/private-API split, health/reason meanings, history reset/eviction and disabled-route recovery. This read-only page does not refresh provider quota, change config or prove actual request outcomes. The unpublished preview has no separate routing mode. Use CPA’s **Enabled** switch. Turning it on puts the scheduler into use; pending or stale quota delegates to CPA as usual. Turning it off stops the scheduler and quota worker and may remove the monitor page. A legacy shadow preview is migrated with `enabled: false` and its `mode` setting removed, so upgrading does not activate routing. Keep the prior native library and a protected backup.
 
 ## Before a rollout
 
@@ -11,7 +11,9 @@ See [monitor guide](monitor.md) for menu/direct paths, memory-only fallback logi
 3. Store a mode-0600 configuration backup outside Git. Record its SHA256 and the plugin artifact SHA256. Do not put OAuth material, API keys, or management secrets in project files or reports.
 4. If CPA uses `requests.proxy-url`, copy that value to this plugin's `proxy_url` without exposing it in logs. Per-account settings take precedence.
 
-## Shadow-first canary
+## Legacy v0.1.x shadow-first canary
+
+The following shadow-specific steps apply only to published v0.1.x. For 0.2.0, verify the build on a disposable CPA first, then explicitly enable the plugin when ready. `tests/live_canary.py` targets the enable/disable candidate.
 
 For the published Linux release, place `quota-first-router.so` as a regular file in the resolved platform plugin directory, then configure it with `enabled: true`, `priority: 100`, `mode: shadow`. Use the existing management config API (or the dashboard plugin config editor). Verify `registered` and `effective_enabled` in the plugins list and authenticated status; do not assume a file copy loaded it. Existing plugin settings must be preserved.
 

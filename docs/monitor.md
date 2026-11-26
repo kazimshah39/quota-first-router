@@ -1,6 +1,6 @@
 # Routing and health monitor (unpublished 0.2.0 candidate)
 
-This read-only page shows cached quota and **scheduler decisions**, not actual served accounts, request success, token/cost analytics or a permanent queue. CPA can retry after a scheduler choice; concurrent traffic replaces the global latest choice. Use host Request Events/Logs for actual outcomes. No production monitoring rollout has occurred.
+This read-only page shows cached quota and **scheduler decisions**, not actual served accounts, request success, token/cost analytics or a permanent queue. CPA can retry after a scheduler choice; concurrent traffic replaces the global latest choice. Use host Request Events/Logs for actual outcomes.
 
 ## Open and authenticate
 
@@ -18,7 +18,7 @@ HTML/CSS/JS resources are public but generic and contain no diagnostics. Private
 - **Quota bars:** each account card shows the percentage **left**, not used, with its reset countdown. Green means at least 70% left, amber at least 25%, and red below 25%, matching Oh My CPA’s Codex quota view. Muted bars show cached data when quota is stale or waiting for a reset refresh. Unknown readings display “Not reported,” not a zero bar. Open **Details** for polling errors and other/model limits; open **Routing activity** for decisions and incidents. Filters never send inference or quota requests.
 - **Quota usable/exhausted/stale:** based on observed blocking windows and server time/max_age. Exhausted is known-empty; unknown/stale top-tier quota delegates safely to CPA. A passed reset is **waiting for fresh quota**, not assumed replenished. Explicit monthly-only allowance ranks after known five-hour resets within its tier.
 - **Refresh/errors:** last successful quota-read age, next scheduled attempt and current sanitized error/failure count. A recovered incident is historical, not a current failure.
-- **Latest/recent scheduler choices:** active choice, shadow proposal or delegation, timestamp/model/stream/mode. Multiple scheduler decisions may belong to one retried request; there is no reliable per-request correlation in this API.
+- **Latest/recent scheduler choices:** a scheduler choice or delegation, timestamp, model and streaming status. Multiple scheduler decisions may belong to one retried request; there is no reliable per-request correlation in this API.
 
 ### Selection reasons
 
@@ -41,7 +41,7 @@ The UI fetches cached diagnostics every five seconds while visible. **Refresh no
 
 History is memory-only: up to **200 decisions**, **200 coalesced incident records**, **100 candidate/exclusion details per decision**, **1,000 account rows**, bounded labels/model quota details and **8 MiB API response**. Eviction/truncation counts are shown. If the cached view cannot fit within the response cap, the API returns 503 rather than an oversized response. Long labels are truncated; do not use the display as a unique identifier for colliding long names. Epoch/start time changes on restart/reconfiguration, clearing history/counters. No database, durable export, alerts or raw provider error bodies. Account labels may contain personal information, so access is management-only. All rendering uses text nodes, never account-provided HTML.
 
-Disabled/unloaded plugins may lose both page and API registration. A 404 means unavailable, not confirmed disabled without host evidence. Use the host's Plugin management to check enablement/rollback. Resource CSP permits same-origin scripts/styles/connect/framing only; a new external dashboard origin is not automatically supported.
+There is no separate routing mode. Enable Quota First Router in CPA to use its scheduler; disable it to return to CPA routing and stop the worker. Disabled/unloaded plugins may lose both page and API registration. A 404 means unavailable, not confirmed disabled without host evidence. Use the host's Plugin management to check enablement/rollback. Resource CSP permits same-origin scripts/styles/connect/framing only; a new external dashboard origin is not automatically supported.
 
 ## Verification and release boundaries
 

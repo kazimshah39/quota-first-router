@@ -20,7 +20,7 @@ func TestObservationBoundsAndCoalescing(t *testing.T) {
 		d.Excluded = append(d.Excluded, "synthetic")
 	}
 	for i := 0; i < 450; i++ {
-		o.recordDecision(d, "gpt-test\n", "active", false, testNow.Add(time.Duration(i)*time.Second))
+		o.recordDecision(d, "gpt-test\n", false, testNow.Add(time.Duration(i)*time.Second))
 		o.incident(fmt.Sprint(i), "quota", "quota_http_503", testNow)
 	}
 	o.incident("449", "quota", "quota_http_503", testNow.Add(time.Minute))
@@ -75,7 +75,7 @@ func TestMonitorHealthLifecycleAndRedaction(t *testing.T) {
 	defer p.stop()
 	p.configure(cfg)
 	first := p.active.Load().observations.epoch
-	p.active.Load().observations.recordDecision(decision{}, "test", "shadow", false, testNow)
+	p.active.Load().observations.recordDecision(decision{}, "test", false, testNow)
 	p.configure(cfg)
 	if p.active.Load().observations.epoch == first || len(p.active.Load().observations.snapshot().Decisions) != 0 {
 		t.Fatal("epoch/history not reset")
@@ -167,7 +167,7 @@ func TestObservationDetachedEpochAndStarting(t *testing.T) {
 	if o.epoch == newObservation(testNow).epoch {
 		t.Fatal("same-clock epoch collision")
 	}
-	o.recordDecision(decision{Candidates: []candidateNote{{ID: "a"}}, Excluded: []string{"b"}}, "test", "active", false, testNow)
+	o.recordDecision(decision{Candidates: []candidateNote{{ID: "a"}}, Excluded: []string{"b"}}, "test", false, testNow)
 	s := o.snapshot()
 	s.Decisions[0].Decision.Candidates[0].ID = "mutated"
 	s.Decisions[0].Decision.Excluded[0] = "mutated"
@@ -269,7 +269,7 @@ func TestMonitorUsesRosterEmailAndPriority(t *testing.T) {
 }
 
 func BenchmarkRecordedPick(b *testing.B) {
-	cfg, _ := decodeConfig([]byte("mode: active"))
+	cfg, _ := decodeConfig(nil)
 	e := newEngine(&fakeHost{}, &fakeFetcher{}, cfg)
 	e.now = func() time.Time { return testNow }
 	e.states = map[string]accountState{"a": readyState(20, 20), "b": readyState(30, 20), "d": readyState(10, 20)}

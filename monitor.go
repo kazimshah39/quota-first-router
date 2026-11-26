@@ -51,7 +51,7 @@ type monitorSnapshot struct {
 
 func (e *engine) monitor() monitorSnapshot {
 	now := e.now()
-	s := monitorSnapshot{Version: pluginVersion, ServerTime: now, Mode: e.cfg.Mode, MaxAgeSeconds: e.cfg.MaxAge.Seconds(), PollInterval: e.cfg.PollInterval.String(), Accounts: []monitorAccount{}, WorkerFailed: e.failed.Load(), Picks: e.picks.Load(), Routed: e.routed.Load()}
+	s := monitorSnapshot{Version: pluginVersion, ServerTime: now, Mode: "active", MaxAgeSeconds: e.cfg.MaxAge.Seconds(), PollInterval: e.cfg.PollInterval.String(), Accounts: []monitorAccount{}, WorkerFailed: e.failed.Load(), Picks: e.picks.Load(), Routed: e.routed.Load()}
 	e.mu.RLock()
 	s.ListError = e.listErr
 	s.TotalAccounts = len(e.states)

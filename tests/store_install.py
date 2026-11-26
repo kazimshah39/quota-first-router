@@ -96,12 +96,14 @@ plugins:
             installed = Path(result['path'])
             assert installed.is_file() and installed.name.endswith('.so')
             api(base + '/config', {'enabled': True, 'priority': 100}, 'PATCH')
-            status = wait(lambda: api(base + '/status'), 'shadow registration')
-            assert status['mode'] == 'shadow' and status['version'] == args.expected_version
+            legacy = tuple(map(int, args.expected_version.split('.'))) < (0, 2, 0)
+            status = wait(lambda: api(base + '/status'), 'plugin registration')
+            assert status['mode'] == ('shadow' if legacy else 'active') and status['version'] == args.expected_version
             assert status['poll_interval'] == '1m0s' and status['max_age'] == '5m0s', status
             assert status['accounts'] == {}, 'Unexpected credentials in isolated instance'
-            api(base + '/config', {'mode': 'active'}, 'PATCH')
-            wait(lambda: api(base + '/status')['mode'] == 'active', 'active mode')
+            if legacy:
+                api(base + '/config', {'mode': 'active'}, 'PATCH')
+                wait(lambda: api(base + '/status')['mode'] == 'active', 'legacy active mode')
             api(base + '/enabled', {'enabled': False}, 'PATCH')
             wait(lambda: any(x['id'] == ID and not x['effective_enabled'] for x in api('/v0/management/plugins')['plugins']), 'disable')
             # Current CPA safely refuses replacement while a native artifact is still loaded.
@@ -114,8 +116,8 @@ plugins:
             assert second['version'] == args.expected_version
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_bytes(Path(second['path']).read_bytes())
-            print(f'PASS public registry discovery, real CPA checksum-verified install, {args.expected_version} shadow defaults '
-                  '(1m/5m), active/disable, isolated restart and same-version reinstall.')
+            print(f'PASS public registry discovery, real CPA checksum-verified install, {args.expected_version} defaults '
+                  '(1m/5m), disable, isolated restart and same-version reinstall.')
             print('Installed artifact SHA256:', hashlib.sha256(output.read_bytes()).hexdigest())
         except BaseException:
             log.flush()

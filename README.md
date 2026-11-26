@@ -68,7 +68,6 @@ plugins:
     quota-first-router:
       enabled: true
       priority: 100
-      mode: shadow
       poll_interval: 1m
       max_age: 5m
       request_timeout: 10s
@@ -76,15 +75,15 @@ plugins:
 
 For a first installation, copy a regular platform library (`.so`, `.dylib`, `.dll`) into the plugin directory. Never overwrite a potentially mapped library during an upgrade; see [version upgrades](docs/operations.md#native-version-upgrades). CPA 8.1.0 supports loading/configuring it through its existing plugin management flow; verify registration, never assume copying alone succeeded. `priority` above orders scheduler **plugins**, not account tiers. CPA 8.1.0 invokes only its highest-priority active scheduler; another scheduler can supersede this one.
 
-- **shadow**: records proposed selection; returns no account choice or exclusions.
-- **active**: chooses accounts and excludes fresh exhausted accounts.
-- **disabled**: CPA's normal routing resumes.
+- **Enabled** (unpublished 0.2.0): chooses accounts and excludes fresh exhausted accounts.
+- **Disabled**: CPA routes normally, and the plugin stops polling quota.
+
+Before upgrading an older shadow installation, disable it and remove its legacy `mode` setting. Enable it only when you want it to route requests. Published v0.1.x builds still have the older mode setting.
 
 ### Configuration
 
 | Key | Default | Allowed / meaning |
 |---|---|---|
-| `mode` | `shadow` | `shadow` or `active` |
 | `poll_interval` | `1m` | `1m`–`1h` |
 | `max_age` | `5m` | At least poll interval, at most `1h` |
 | `request_timeout` | `10s` | `1s`–`30s`, quota GET timeout |
@@ -96,7 +95,7 @@ The worker reconciles the roster and reset deadlines every 30 seconds and polls 
 
 ## Monitor candidate (unpublished 0.2.0)
 
-The read-only **Quota First Router** plugin page shows health, cached quota, bounded scheduler choices and incidents. Public HTML is generic; all private diagnostics require management login. Choices are not actual served-account or request-success evidence. See [monitor guide](docs/monitor.md) for paths, auth, limits and lifecycle; [local evidence](docs/evidence/0.2.0/README.md) lists passed checks and pending native/release gates. Production/public v0.1.2 remains unchanged.
+The read-only **Quota First Router** plugin page shows health, cached quota, bounded scheduler choices and incidents. Public HTML is generic; all private diagnostics require management login. Choices are not actual served-account or request-success evidence. See [monitor guide](docs/monitor.md) for paths, auth, limits and lifecycle; [local evidence](docs/evidence/0.2.0/README.md) lists passed checks and pending native/release gates. The public v0.1.2 release is unchanged.
 
 ## Authenticated diagnostics
 

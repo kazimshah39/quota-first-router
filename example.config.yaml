@@ -7,7 +7,6 @@ plugins:
     quota-first-router:
       enabled: true
       priority: 100
-      mode: shadow
       poll_interval: 1m
       max_age: 5m
       request_timeout: 10s

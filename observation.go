@@ -80,12 +80,12 @@ func boundedDecision(d decision) (decision, int) {
 	}
 	return out, truncated
 }
-func (o *observation) recordDecision(d decision, model, mode string, stream bool, now time.Time) {
+func (o *observation) recordDecision(d decision, model string, stream bool, now time.Time) {
 	bounded, truncated := boundedDecision(d)
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.sequence++
-	o.decisions[o.decisionNext] = decisionRecord{o.sequence, now, safeLabel(model), stream, mode, bounded, truncated}
+	o.decisions[o.decisionNext] = decisionRecord{o.sequence, now, safeLabel(model), stream, "active", bounded, truncated}
 	o.decisionNext = (o.decisionNext + 1) % historyCapacity
 	if o.decisionCount < historyCapacity {
 		o.decisionCount++
