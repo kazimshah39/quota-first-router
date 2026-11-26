@@ -41,11 +41,17 @@
   reading.append(bar, node('span', countdown(q.resets_at, now), 'quota-caption'));
   return reading;
  }
+ function accountTitle(id) {
+  // Strip only known Codex filename prefixes and only when the rest is an email.
+  const email = id.replace(/\.json$/i, '').replace(/^codex-(?:9router-)?[0-9a-f]{8}-/i, '');
+  return /^[\w.!#$%&'*+\/=?^_`{|}~-]+@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]+$/i.test(email) ? email : id;
+ }
  function renderAccount(a, note, record, now, expanded) {
   const account = node('article', undefined, 'account');
+  account.dataset.accountId = a.id;
   const heading = node('header', undefined, 'account-head');
   const identity = node('div');
-  const title = node('h3', a.id);
+  const title = node('h3', accountTitle(a.id));
   const state = a.availability === 'ready' ? '' : ` · ${reason(a.availability)}`;
   identity.append(title, node('p', (note ? `Tier ${note.priority}` : 'Tier unknown · not offered') + state, 'account-meta'));
   heading.append(identity);
@@ -86,12 +92,12 @@
   $('coverage').textContent = `${data.accounts_truncated||0} accounts and ${record?.truncated||0} candidate details omitted by safety limits.`;
   const search=$('search').value.toLowerCase();const accounts=[...data.accounts].filter(a=>a.id.toLowerCase().includes(search));accounts.sort((a,b)=>{const x=notes.get(a.id),y=notes.get(b.id);if(!x&&!y)return a.id.localeCompare(b.id);if(!x)return 1;if(!y)return -1;return y.priority-x.priority||(x.five_hour_reset?Date.parse(x.five_hour_reset):Infinity)-(y.five_hour_reset?Date.parse(y.five_hour_reset):Infinity)||a.id.localeCompare(b.id);});
   const list = $('accounts');
-  const expanded = new Set([...list.children].filter(card => card.querySelector?.('details')?.open).map(card => card.querySelector('h3').textContent));
+  const expanded = new Set([...list.children].filter(card => card.querySelector('details')?.open).map(card => card.dataset.accountId));
   const focusedSummary = document.activeElement;
   const focusedCard = focusedSummary?.tagName === 'SUMMARY' && focusedSummary.closest('.account');
-  const focusedTitle = focusedCard ? focusedCard.querySelector('h3').textContent : null;
+  const focusedID = focusedCard ? focusedCard.dataset.accountId : null;
   list.replaceChildren(...accounts.map(a => renderAccount(a, notes.get(a.id), record, now, expanded.has(a.id))));
-  if (focusedTitle !== null) [...list.children].find(card => card.querySelector('h3')?.textContent === focusedTitle)?.querySelector('summary').focus({preventScroll:true});
+  if (focusedID !== null) [...list.children].find(card => card.dataset.accountId === focusedID)?.querySelector('summary').focus({preventScroll:true});
   if (!accounts.length) empty(list, search ? 'No matching accounts.' : 'No eligible Codex accounts have been discovered.');
   $('activity-count').textContent = `· ${h.decisions.length} decisions · ${h.incidents.length} incidents`;
   $('latest').textContent=record?`${record.mode==='shadow'?'Shadow proposal':'Scheduler choice'}: ${d.auth_id||'delegated to CPA'} · ${record.model} · ${record.stream?'streaming':'non-streaming'} · ${stamp(record.at)} · ${reason(d.reason)}`:'No scheduler decisions yet. Send ordinary traffic through CPA to observe selections.';

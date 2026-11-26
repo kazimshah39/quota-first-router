@@ -65,12 +65,23 @@ async function main() {
   details[2].open=true;
   element('refresh').click();requests[2].resolve({ok:true,status:200,json:async()=>populated});await tick();
   assert.equal(list.findAll('details')[2].open,true,'auto-refresh must not close expanded account');
-  element('refresh').click();requests[3].resolve({ok:false,status:403});await tick();
+  const named = {...populated, accounts:[
+    {id:'codex-9router-527e014a-alex+work@example.test.json', availability:'ready', quota},
+    {id:'codex-abcd1234-alex+work@example.test.json', availability:'ready', quota},
+    {id:'codex-12345678-non-email.json', availability:'unknown'},
+    {id:'user-name@example.test.json', availability:'unknown'},
+  ]};
+  element('refresh').click();requests[3].resolve({ok:true,status:200,json:async()=>named});await tick();
+  assert.deepEqual(list.findAll('h3').map(title=>title.textContent), ['codex-12345678-non-email.json','alex+work@example.test','alex+work@example.test','user-name@example.test']);
+  list.findAll('details')[1].open=true;
+  element('refresh').click();requests[4].resolve({ok:true,status:200,json:async()=>named});await tick();
+  assert.deepEqual(list.findAll('details').map(detail=>detail.open), [false,true,false,false], 'same email must not merge disclosure state');
+  element('refresh').click();requests[5].resolve({ok:false,status:403});await tick();
   assert.equal(list.findAll('progress').length,0,'forbidden removes previous quota indicators');
   assert.equal(element('private').hidden,true);assert.equal(element('history-note').textContent,'');assert.equal(element('model').textContent,'Latest selection');
   assert.equal(writes,0,'must not persist entered key');
-  submit('secret');document.hidden=true;document.visibilitychange();assert.equal(requests[4].options.signal.aborted,true,'hidden page aborts');
-  requests[4].resolve({ok:true,status:200,json:async()=>snapshot});await tick();assert.equal(element('private').hidden,true);
+  submit('secret');document.hidden=true;document.visibilitychange();assert.equal(requests[6].options.signal.aborted,true,'hidden page aborts');
+  requests[6].resolve({ok:true,status:200,json:async()=>snapshot});await tick();assert.equal(element('private').hidden,true);
   console.log('PASS monitor: remaining-quota bars, thresholds, monthly/unknown/stale states, persistent disclosure, theme, logout race, auth clearing and single-flight refresh');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});
