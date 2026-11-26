@@ -7,7 +7,7 @@ LIB_EXT = $(if $(filter windows,$(TARGET_OS)),dll,$(if $(filter darwin,$(TARGET_
 LIBRARY ?= dist/quota-first-router.$(LIB_EXT)
 BUILD_FLAGS ?= $(if $(filter amd64,$(TARGET_ARCH)),-O2 -march=x86-64 -mtune=generic,-O2)
 RELEASE_DIR ?= dist/release
-.PHONY: test build integration-test soak-test package cpa version clean
+.PHONY: test build integration-test soak-test package cpa matrix version clean
 
 test:
 	$(GO) test -race -count=1 ./...
@@ -17,7 +17,7 @@ test:
 
 build:
 	mkdir -p $(dir $(LIBRARY))
-	CGO_ENABLED=1 GOOS=$(TARGET_OS) GOARCH=$(TARGET_ARCH) GOAMD64=v1 CGO_CFLAGS='$(BUILD_FLAGS)' $(GO) build -trimpath -buildvcs=false -buildmode=c-shared -o $(LIBRARY) .
+	CGO_ENABLED=1 GOOS=$(TARGET_OS) GOARCH=$(TARGET_ARCH) GOAMD64=v1 GOARM64=v8.0 CGO_CFLAGS='$(BUILD_FLAGS)' $(GO) build -trimpath -buildvcs=false -buildmode=c-shared -o $(LIBRARY) .
 
 integration-test: build
 	python3 tests/host_integration.py --cpa $(CPA_BINARY) --library dist/quota-first-router.so

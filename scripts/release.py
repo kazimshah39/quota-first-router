@@ -75,7 +75,7 @@ def matrix(directory,require_native=False):
   if require_native:
    evidence=json.loads((directory/(f'native-{target[0]}-{target[1]}.json')).read_text())
    with zipfile.ZipFile(p) as z:digest=hashlib.sha256(z.read(ID+extension(target[0]))).hexdigest()
-   assert evidence['native'] is True and evidence['goos']==target[0] and evidence['goarch']==target[1] and evidence['library_sha256']==digest and evidence['cpa_version']==CPA_VERSION and evidence['passed'] is True and evidence['local_store_install'] is True and evidence['archive_sha256']==entries[p.name] and evidence['soak_seconds']>=65 and evidence['invalid_library_rejected'] is True and re.fullmatch('[0-9a-f]{64}',evidence['cpa_sha256']) and evidence['host_machine'] and evidence['go_version'],'Missing matching native acceptance'
+   assert evidence['native'] is True and evidence['goos']==target[0] and evidence['goarch']==target[1] and evidence['library_sha256']==digest and evidence['cpa_version']==CPA_VERSION and evidence['passed'] is True and evidence['local_store_install'] is True and evidence['archive_sha256']==entries[p.name] and evidence['soak_seconds']>=65 and evidence['invalid_library_rejected'] is True and evidence['wrong_arch_library_rejected'] is True and re.fullmatch('[0-9a-f]{64}',evidence['cpa_sha256']) and evidence['host_machine'] and evidence['go_version'],'Missing matching native acceptance'
   result.append(info)
  return result
 

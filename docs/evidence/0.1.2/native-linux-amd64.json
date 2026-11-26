@@ -15,14 +15,15 @@
     ],
     "binary_minimum": "GLIBC_2.34"
   },
-  "at": "2026-11-26T05:26:45.708095+00:00",
+  "at": "2026-11-26T05:31:12.923397+00:00",
   "soak_seconds": 75,
-  "soak_requests": 587,
+  "soak_requests": 571,
   "quota_gets": 18,
   "local_store_install": true,
   "archive_sha256": "8322b1a5b11e52dcf481c0affd0d483694198b5c4d2bdd3af130692bbb306a4c",
   "host_os": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
   "host_machine": "x86_64",
   "go_version": "go version go1.26.10 linux/amd64",
-  "invalid_library_rejected": true
+  "invalid_library_rejected": true,
+  "wrong_arch_library_rejected": true
 }

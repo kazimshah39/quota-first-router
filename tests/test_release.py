@@ -45,7 +45,7 @@ class ReleaseTests(unittest.TestCase):
                 self.assertEqual(len(release.matrix(out)),6)
                 with self.assertRaises(FileNotFoundError):release.matrix(out,True)
                 for os,arch in release.TARGETS:
-                    (out/f'native-{os}-{arch}.json').write_text(json.dumps({'native':True,'goos':os,'goarch':arch,'passed':True,'library_sha256':hashlib.sha256(fixture(os,arch)).hexdigest(),'cpa_version':'8.1.0','local_store_install':True,'archive_sha256':hashlib.sha256((out/release.archive_name(os,arch)).read_bytes()).hexdigest(),'soak_seconds':75,'invalid_library_rejected':True,'cpa_sha256':'1'*64,'host_machine':arch,'go_version':'go1.26.10'}))
+                    (out/f'native-{os}-{arch}.json').write_text(json.dumps({'native':True,'goos':os,'goarch':arch,'passed':True,'library_sha256':hashlib.sha256(fixture(os,arch)).hexdigest(),'cpa_version':'8.1.0','local_store_install':True,'archive_sha256':hashlib.sha256((out/release.archive_name(os,arch)).read_bytes()).hexdigest(),'soak_seconds':75,'invalid_library_rejected':True,'wrong_arch_library_rejected':True,'cpa_sha256':'1'*64,'host_machine':arch,'go_version':'go1.26.10'}))
                 self.assertEqual(len(release.matrix(out,True)),6)
                 evidence=out/'native-windows-arm64.json';valid=evidence.read_text();bad=json.loads(valid);bad['library_sha256']='0'*64;evidence.write_text(json.dumps(bad))
                 with self.assertRaises(AssertionError):release.matrix(out,True)

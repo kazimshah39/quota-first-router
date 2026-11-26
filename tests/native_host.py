@@ -88,6 +88,9 @@ def main():
             assert z.read(library.name)==library.read_bytes(),'Archive and library differ'
         # An invalid library must be rejected without taking down CPA.
         (plugins/('invalid-native-fixture'+library.suffix)).write_bytes(b'not a shared library')
+        other='arm64' if arch=='amd64' else 'amd64'
+        other_archive=Path(a.archive).with_name(Path(a.archive).name.replace('_'+arch+'.zip','_'+other+'.zip'))
+        with zipfile.ZipFile(other_archive) as z:(plugins/('wrong-machine-fixture'+library.suffix)).write_bytes(z.read(library.name))
         class Store(http.server.BaseHTTPRequestHandler):
             def log_message(self,*_):pass
             def do_GET(self):
@@ -142,7 +145,9 @@ def main():
             assert hashlib.sha256(Path(installed['path']).read_bytes()).hexdigest()==hashlib.sha256(library.read_bytes()).hexdigest(),'Installer library differs'
             wait(lambda:ready('shadow'),'registration and polling')
             defaults=status();assert defaults['version']=='0.1.2' and defaults['poll_interval']=='1m0s' and defaults['max_age']=='5m0s',defaults
-            listing=json.loads(api('/v0/management/plugins'));assert 'invalid-native-fixture' in json.dumps(listing),'Invalid fixture was not scanned'
+            listing=json.loads(api('/v0/management/plugins'));assert all(name in json.dumps(listing) for name in ('invalid-native-fixture','wrong-machine-fixture')),'Invalid fixtures were not scanned'
+            failures=[v for v in listing['plugins'] if 'fixture' in v.get('path','')]
+            assert len(failures)==2 and all(not v.get('registered') for v in failures),'Invalid libraries registered'
             wait(lambda:any(m['id']==MODEL for m in json.loads(api('/v1/models',client=True))['data']),'model registration')
             for token in (None,'bad'):
                 req=urllib.request.Request(f'http://127.0.0.1:{port}'+BASE+'/status',headers={} if token is None else {'Authorization':'Bearer '+token})
@@ -161,7 +166,7 @@ def main():
             exhausted.clear();configure();assert inference()=='b','tier recovery'
             api(BASE+'/enabled',{'enabled':False},'PATCH');wait(lambda:inference()=='a','disable rollback');api(BASE+'/enabled',{'enabled':True},'PATCH');wait(lambda:ready('active'),'reenable');assert inference()=='b'
             for id,(priority,_) in accounts.items():stored=json.loads((auths/(id+'.json')).read_text());assert stored['priority']==priority and not stored['disabled']
-            evidence={'goos':goos,'goarch':arch,'native':True,'passed':True,'cpa_version':'8.1.0','library_sha256':hashlib.sha256(library.read_bytes()).hexdigest(),'cpa_sha256':hashlib.sha256(cpa.read_bytes()).hexdigest(),'inspection':inspection,'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'soak_seconds':a.seconds,'soak_requests':requests,'quota_gets':len(polls),'local_store_install':True,'archive_sha256':hashlib.sha256(archive_bytes).hexdigest(),'host_os':platform.platform(),'host_machine':platform.machine(),'go_version':subprocess.check_output([os.environ.get('GO','go'),'version'],text=True).strip(),'invalid_library_rejected':True}
+            evidence={'goos':goos,'goarch':arch,'native':True,'passed':True,'cpa_version':'8.1.0','library_sha256':hashlib.sha256(library.read_bytes()).hexdigest(),'cpa_sha256':hashlib.sha256(cpa.read_bytes()).hexdigest(),'inspection':inspection,'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'soak_seconds':a.seconds,'soak_requests':requests,'quota_gets':len(polls),'local_store_install':True,'archive_sha256':hashlib.sha256(archive_bytes).hexdigest(),'host_os':platform.platform(),'host_machine':platform.machine(),'go_version':subprocess.check_output([os.environ.get('GO','go'),'version'],text=True).strip(),'invalid_library_rejected':True,'wrong_arch_library_rejected':True}
             Path(a.output).parent.mkdir(parents=True,exist_ok=True);Path(a.output).write_text(json.dumps(evidence,indent=2));print('PASS native CPA acceptance',goos,arch)
         except BaseException:
             log.flush();log.seek(0);print(log.read());raise
