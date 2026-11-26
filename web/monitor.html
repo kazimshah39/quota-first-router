@@ -29,10 +29,10 @@
     </section>
     <section class="quota-section" aria-labelledby="account-heading">
       <div class="section-head">
-        <div><h2 id="account-heading">Account quota</h2><p class="muted">Bars show quota left at the last successful check.</p></div>
+        <h2 id="account-heading">Account quota</h2>
         <div class="filters">
-          <label>Find account<input id="search" type="search" placeholder="Account name"></label>
-          <label>Observed model<select id="model"><option value="">Latest selection</option></select></label>
+          <label>Find account<input id="search" type="search" placeholder="Email or account name"></label>
+          <label>Model<select id="model"><option value="">Latest selection</option></select></label>
         </div>
       </div>
       <p id="order-note" class="muted order-note"></p>
@@ -42,7 +42,7 @@
     <details class="panel history-panel">
       <summary>Routing activity <span id="activity-count" class="muted"></span></summary>
       <div class="activity-body">
-        <section><h2>Latest scheduler selection</h2><p id="latest"></p><p class="muted">Choices and shadow proposals are not served-account evidence. Check your host’s Request Events / Logs for actual results.</p></section>
+        <section><h2>Latest routing decision</h2><p id="latest"></p><p class="muted">To see which account served the request, check Request Events.</p></section>
         <div class="history-grid">
           <section><h2>Problems &amp; recoveries</h2><ol id="incidents" class="history"></ol></section>
           <section><h2>Recent scheduler decisions</h2><ol id="decisions" class="history"></ol></section>
@@ -50,7 +50,6 @@
         <p id="history-note" class="muted"></p>
       </div>
     </details>
-    <footer>Read-only. Refreshing this page does not poll provider quota or send requests to your accounts.</footer>
   </div>
 </main></body>
 </html>

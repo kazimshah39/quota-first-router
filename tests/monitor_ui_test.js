@@ -46,7 +46,7 @@ async function main() {
   assert.equal(element('private').hidden,true,'late response must not restore logged-out diagnostics');
   assert.equal(element('history-note').textContent,'');
   const quota = {five_hour:{utilization:20},seven_day:{utilization:62},model_windows:{'gpt-example':[{utilization:100}]}};
-  const populated = {...snapshot, total_accounts:4, fresh_accounts:3, accounts:[
+  const populated = {...snapshot, total_accounts:4, fresh_accounts:3, history:{...snapshot.history, decisions:[{mode:'shadow', model:'gpt-example', decision:{auth_id:'primary', candidates:[{auth_id:'primary', priority:20, reason:'ready'}]}}]}, accounts:[
     {id:'primary', availability:'ready', quota},
     {id:'cached', availability:'stale', quota:{five_hour:{utilization:0}}},
     {id:'monthly', availability:'ready', quota:{five_hour_absent:true,seven_day:{utilization:76}}},
@@ -55,16 +55,20 @@ async function main() {
   submit('secret');requests[1].resolve({ok:true,status:200,json:async()=>populated});await tick();
   assert.equal(element('private').hidden,false);
   const list=element('accounts');
-  assert.deepEqual(list.findAll('progress').map(bar=>[bar.value,bar.dataset.tone]),[[100,'cached'],[24,'critical'],[80,'good'],[38,'low'],[0,'critical']]);
+  assert.deepEqual(list.findAll('progress').map(bar=>[bar.value,bar.dataset.tone]),[[80,'good'],[38,'low'],[0,'critical'],[100,'cached'],[24,'critical']]);
   assert.equal(list.children[3].findAll('progress').length,0,'unknown is not 0%');
-  assert.match(list.children[1].textContent,/Monthly allowance/);
-  assert.doesNotMatch(list.children[1].textContent,/5 hours/);
+  assert.match(list.children[2].textContent,/Monthly allowance/);
+  assert.doesNotMatch(list.children[2].textContent,/5 hours/);
+  assert.match(list.children[0].textContent,/Would select/);
+  assert.doesNotMatch(list.children[0].textContent,/Quota usable|Last offered/);
+  assert.equal(element('health-note').hidden,true);
+  assert.equal(element('history-note').hidden,true);
   const details=list.findAll('details');
   assert.equal(details.every(detail=>detail.open===false),true);
-  assert.match(details[2].textContent,/gpt-example/);
-  details[2].open=true;
+  assert.match(details[0].textContent,/gpt-example/);
+  details[0].open=true;
   element('refresh').click();requests[2].resolve({ok:true,status:200,json:async()=>populated});await tick();
-  assert.equal(list.findAll('details')[2].open,true,'auto-refresh must not close expanded account');
+  assert.equal(list.findAll('details')[0].open,true,'auto-refresh must not close expanded account');
   const named = {...populated, accounts:[
     {id:'codex-9router-527e014a-alex+work@example.test.json', availability:'ready', quota},
     {id:'codex-abcd1234-alex+work@example.test.json', availability:'ready', quota},
