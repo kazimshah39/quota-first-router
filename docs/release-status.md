@@ -1,8 +1,8 @@
 # Release status
 
-## v0.1.2 — local candidate; not published or ready for release
+## v0.1.2 — six native targets verified; publication in progress
 
-Six genuine platform ZIPs and sorted checksums are prepared locally. Linux amd64 passed exact-package native CPA 8.1.0 loading, local store install and routing/polling/rollback tests. The other five native acceptances and hosted CI remain pending. See [platform support](platform-support.md), [candidate review record](releases/0.1.2.md) and [sanitized evidence](evidence/0.1.2/README.md). Monitoring is paused and excluded. No new release/tag/PR/remote workflow or production change was made. Existing public releases remain immutable.
+All six Darwin/Linux/Windows × amd64/arm64 packages passed matching native CPA 8.1.0 store/load/routing/polling/rollback tests in [CI run 45785056147](https://github.com/kazimshah39/quota-first-router/actions/runs/45785056147), source `ebc5d89`. The complete hash-bound artifact gate passed. See [platform support](platform-support.md), [release notes](releases/0.1.2.md) and [sanitized evidence](evidence/0.1.2/README.md). User approval now covers remote validation, publication, public/store installation checks, new registry-only PR and protected production rollout. Actual outcomes will be recorded after each gate passes. Monitoring remains paused and excluded; existing releases are immutable.
 
 ## v0.1.1 — published and deployed
 

@@ -1,20 +1,21 @@
-# Local candidate verification record
+# 0.1.2 verification evidence
 
-Candidate: 0.1.2, stable base `d1e1571829267bd93b484e05698a018cb2b022be`, platform-readiness branch. These are local checks, not a hosted CI run or public release. Source commit is available in local Git history; binary/package builds disable VCS embedding for deterministic clean-export comparison.
+All six targets passed native CPA/store/routing acceptance in [CI 45785056147](https://github.com/kazimshah39/quota-first-router/actions/runs/45785056147), source `ebc5d89`. This directory records that exact artifact set; later documentation-only commits do not change router code, but publication still requires a successful exact-tag-source CI run.
 
-- `checksums.txt`: final six genuine ZIP hashes, also listed in release notes.
-- `binary-matrix.json`: architecture/ABI/dependencies/minimum metadata for all six candidate packages.
-- `native-linux-amd64.json`: exact final ZIP and library SHA, CPA 8.1.0 executable SHA, native OS/machine and Go version; real local store installation, routing, polling, rollback and invalid-library rejection. No personal credentials or prompts are present.
-- Five other native records are deliberately absent. `matrix --require-native` must fail until all six exist; fake fixture records appear only inside temporary unit-test directories.
+- `checksums.txt`: six ZIP SHA-256 values.
+- `binary-matrix.json`: architecture/ABI/dependency/minimum metadata and ZIP hashes.
+- `native-<os>-<arch>.json`: genuine native host OS/machine/Go version, CPA/library/archive SHA-256, 75s repeated request counts, polling, local store install, invalid-header/opposite-architecture rejection and passed routing/rollback acceptance.
 
-## Commands and results
+All six were native, not emulated. Request counts: Darwin amd64 443, Darwin arm64 486, Linux amd64 714, Linux arm64 707, Windows amd64 684, Windows arm64 651. Each observed 18 quota GETs over its fixture lifecycle and zero unknown-quota fallback events in this recorded run. Native unit/vet and supported race checks passed; windows/arm64 race is unsupported and explicitly skipped.
 
-- `python3 scripts/build_matrix.py --allow-sdk-download`: pass all six targets with pinned toolchains, deployment/dependency/format/export checks and deterministic flat packaging.
-- `make test`: pass Go race/unit/vet/gofmt and four offline Python test groups (format/machine/export, runtime baseline, packaging/matrix/native-evidence rejection, registry).
-- `tests/native_host.py ... --seconds 75`: pass Linux amd64 using the exact packaged candidate and its local store installer. Request/poll counts and native hashes are in JSON. Both an invalid-header library and the actual packaged opposite-architecture library are discovered and rejected as unregistered while native CPA remains functional; offline tests also reject wrong machines.
-- `SOAK_SECONDS=120 python3 tests/host_integration.py --cpa dist/cpa/cli-proxy-api --library dist/native/quota-first-router.so`: pass against the exact packaged library, 1,520 mixed protocol/stream requests; background polling continued; RSS KiB min 75,692 / max 79,332 / final 78,532. Original authenticated/shadow/active/tier/stale/exhaustion/recovery/failure/tool/cancellation/pinning/competing-scheduler/rollback suite also passed. Local TLS fixture logged a client EOF during cancellation; assertions and exit status passed. CPA-owned 401 retained state is not claimed to recover automatically.
-- `actionlint -shellcheck= .github/workflows/ci.yml .github/workflows/release.yml` with actionlint 1.7.12: pass. Six proposed native lanes and read-only nonpublishing artifact gate are defined locally; hosted execution is pending approval. Shellcheck was not installed and is not claimed as run.
-- Clean Git export/rebuild comparison: pass; all six ZIPs rebuilt from `git archive HEAD` were byte-identical to the candidate packages, without references, private files or paused monitoring. Shared checksum-pinned tool downloads are build inputs, not private source dependencies.
-- Preservation: all 11 original monitor-file SHA256 values and four production config/library hashes matched the pre-work manifests. Stable routing/ABI/bridge/module files match the base byte-for-byte; no monitor sources/UI/routes in this candidate.
+## Other verified checks
 
-Private raw logs, original-file manifests, recoverable monitoring archive, tool downloads and draft issue/PR responses are outside tracked evidence. No push/dispatch, tag/release/upload, public comment/new PR/registry edit or production change was performed.
+- Six genuine pinned-toolchain c-shared builds; strict ELF/Mach-O/PE machine/export/dependency/runtime-baseline checks; flat license/library ZIPs and complete sorted checksums.
+- Clean `git archive HEAD` rebuild produced byte-identical six packages in hosted CI. Ignored reference clones, private files and paused monitoring are not dependencies. Cross-host byte identity is not promised: published artifacts are the actual CI artifact set, not different local builds.
+- Go unit/race/vet/gofmt and four offline Python test groups passed, including missing/wrong/duplicate/traversal/checksum/native-evidence rejection.
+- Original exact-package Linux Docker acceptance and 120s local resource soak passed: 1,520 mixed protocol/stream requests; background polling continued; RSS KiB min 75,692 / max 79,332 / final 78,532. Suite includes failure/retry statuses, competing scheduler, auth/pinning/model filtering, tools, cancellation, tier/recovery/stale behavior and rollback. A cancellation-induced TLS EOF was logged; assertions/exit passed. CPA-owned retained 401 state is not claimed to recover automatically.
+- actionlint 1.7.12 passed locally without shellcheck; actual hosted six-native CI also passed. Normal CI has no release-creation step. Manual publication requires exact source/tag/run, six native records and explicit approved input/environment.
+- Earlier nonpassing runs exposed portable certificate/trust cleanup problems and one documented safe top-tier unknown-quota fallback while CPA atomically rewrote credentials. Those were fixed in fixtures without changing the router implementation. macOS cleanup removes the exact system certificate and verifies absence; disposable runner teardown removes remaining VM state. See platform-support.md for limits.
+- Original 11 paused monitor-file hashes, recoverable archive and production config/library hashes matched before rollout. Router/ABI/bridge/module source stayed byte-for-byte at stable base except version. Production outcomes after authorized rollout are recorded separately in release-status.md.
+
+Private raw logs, protected configuration/account evidence, download caches and original-file manifests are not published. No OAuth material, personal account details, management secrets or real request content is in these synthetic records.

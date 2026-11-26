@@ -1,0 +1,34 @@
+{
+  "goos": "darwin",
+  "goarch": "arm64",
+  "native": true,
+  "passed": true,
+  "cpa_version": "8.1.0",
+  "library_sha256": "9dac5660eff2655924b3da3b868ad45b65ffa789d3f55a474e8a7ae2c811bd5e",
+  "cpa_sha256": "a18ee4edf52ce85c4363cd2e69ea22812b3bb1c64e29b68e9522151e2b1d24ae",
+  "inspection": {
+    "goos": "darwin",
+    "goarch": "arm64",
+    "entry": "cliproxy_plugin_init",
+    "dependencies": [
+      "/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation",
+      "/System/Library/Frameworks/Security.framework/Versions/A/Security",
+      "/usr/lib/libSystem.B.dylib",
+      "/usr/lib/libobjc.A.dylib",
+      "/usr/lib/libresolv.9.dylib"
+    ],
+    "binary_minimum": "13.0.0"
+  },
+  "at": "2026-11-26T08:55:10.459146+00:00",
+  "soak_seconds": 75,
+  "soak_requests": 486,
+  "safe_unknown_fallbacks": 0,
+  "quota_gets": 18,
+  "local_store_install": true,
+  "archive_sha256": "e8a222ab706c48c17bc85c1fd02107a71156e7d5e9761c6daaf832afed9ae411",
+  "host_os": "macOS-15.8.2-arm64-arm-64bit",
+  "host_machine": "arm64",
+  "go_version": "go version go1.26.10 darwin/arm64",
+  "invalid_library_rejected": true,
+  "wrong_arch_library_rejected": true
+}

@@ -27,7 +27,7 @@ If full config restoration is needed, reconcile unrelated concurrent edits first
 
 ## Candidate platform limits
 
-The local 0.1.2 candidate is not published or approved for production. Its six archives use `.so` (Linux), `.dylib` (Darwin), and `.dll` (Windows). Only Linux amd64 has passed native CPA acceptance so far. Follow [platform-support.md](platform-support.md) for exact packages, pinned tools, runtime limits and disposable-native tests. Never treat a valid header/export as proof of loadability. Native CA fixtures must not be run on a personal/shared macOS or Windows machine. Monitoring is deferred.
+Version 0.1.2 has six archives using `.so` (Linux), `.dylib` (Darwin), and `.dll` (Windows). All six passed matching native CPA/store/routing acceptance; actual publication and protected rollout state is in release-status.md. Follow [platform-support.md](platform-support.md) for exact packages, pinned tools, runtime limits and disposable-native tests. Never treat a valid header/export as proof of loadability. Native CA fixtures must not be run on a personal/shared macOS or Windows machine. Monitoring is deferred.
 
 ## Native version upgrades
 

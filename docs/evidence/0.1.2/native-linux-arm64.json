@@ -1,0 +1,30 @@
+{
+  "goos": "linux",
+  "goarch": "arm64",
+  "native": true,
+  "passed": true,
+  "cpa_version": "8.1.0",
+  "library_sha256": "f29b4a1524a6276184b9f54589088305293ec1861dfe3795d5ce5b8cc8254e6c",
+  "cpa_sha256": "49df793317ebd46ecb44a8dabc0834dad6b19673afc5df6486deda7e3646bf97",
+  "inspection": {
+    "goos": "linux",
+    "goarch": "arm64",
+    "entry": "cliproxy_plugin_init",
+    "dependencies": [
+      "libc.so.6"
+    ],
+    "binary_minimum": "GLIBC_2.34"
+  },
+  "at": "2026-11-26T08:53:50.200371+00:00",
+  "soak_seconds": 75,
+  "soak_requests": 707,
+  "safe_unknown_fallbacks": 0,
+  "quota_gets": 18,
+  "local_store_install": true,
+  "archive_sha256": "b1d382366821367b2b38d4599eaddba07c1f923a680e5d8cfc944d6a791701cc",
+  "host_os": "Linux-7.0.0-1017-azure-aarch64-with-glibc2.39",
+  "host_machine": "aarch64",
+  "go_version": "go version go1.26.10 linux/arm64",
+  "invalid_library_rejected": true,
+  "wrong_arch_library_rejected": true
+}

@@ -1,6 +1,6 @@
 # Comprehensive validation matrix
 
-Historical public-release target: CPA 8.1.0 (`69607634`), Linux amd64/glibc 2.34+. Local 0.1.2 six-target build and native acceptance status: [platform evidence](platform-support.md). The five nonlocal native results remain pending. Tests use synthetic credentials unless explicitly described as live. A pass is not a claim that every provider behavior or future CPA version is supported.
+Historical public-release target: CPA 8.1.0 (`69607634`), Linux amd64/glibc 2.34+. Local 0.1.2 six-target build and native acceptance status: [platform evidence](platform-support.md). All six genuine matching native results passed in CI 45785056147 and are recorded under docs/evidence/0.1.2/. Tests use synthetic credentials unless explicitly described as live. A pass is not a claim that every provider behavior or future CPA version is supported.
 
 ## Automated coverage
 

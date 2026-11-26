@@ -25,7 +25,7 @@ Higher numeric priority means a higher tier. The plugin never changes priorities
 
 ## Build and checks
 
-Linux amd64 with glibc 2.34+ is the currently runtime-verified platform. Install Go **1.26.10**, a C compiler, make, and Python **3.12+**. The pinned CPA SDK can trigger Go's normal toolchain download. The local **0.1.2 candidate** builds all six required platforms, but five native runtime acceptances remain pending. Cross-compilation is not a support claim. See [platform support and candidate verification](docs/platform-support.md) for pinned toolchains, macOS TLS isolation, commands and exact limits.
+Linux amd64 with glibc 2.34+ is the currently runtime-verified platform. Install Go **1.26.10**, a C compiler, make, and Python **3.12+**. The pinned CPA SDK can trigger Go's normal toolchain download. Version **0.1.2** builds all six required platforms, and Darwin/Linux/Windows × amd64/arm64 passed matching native CPA 8.1.0 load/store/routing tests. Tested hosts and runtime limits are documented; oldest-OS runtime coverage is not implied. See [platform support and candidate verification](docs/platform-support.md) for pinned toolchains, macOS TLS isolation, commands and exact limits.
 
 ```sh
 make GO=go test
@@ -44,9 +44,9 @@ Set `GO=go` to use your installed Go. `make cpa` downloads CPA 8.1.0 and verifie
 
 ## Install and observe
 
-**Supported: CPA 8.1.0, Linux amd64/glibc 2.34+.** Other platforms are not included in the current release.
+**CPA 8.1.0: Linux, macOS and Windows, each amd64/arm64.** Version 0.1.2 provides all six native-tested packages. Linux requires glibc 2.34+; macOS binary deployment minimum is 13.0; Windows was tested on Server 2025 amd64 and Windows 11 ARM64. See [platform support](docs/platform-support.md) for precise tested/runtime limits. Older v0.1.0/v0.1.1 releases remain Linux-amd64 only.
 
-Official-store PR **#402 is closed** for missing platform coverage; issue **#1 is open**. No new PR has been submitted. To install the existing Linux-amd64 public release, add this custom registry source in CPA's configuration, keeping any existing sources:
+Official-store PR **#402 is closed** for missing platform coverage; issue **#1 is open**. Full-platform native verification now passes; publication/store-submission state is tracked in [release status](docs/release-status.md). To install from the author’s registry, add this custom registry source in CPA's configuration, keeping any existing sources:
 
 ```yaml
 plugins:
@@ -56,7 +56,7 @@ plugins:
 
 Then refresh the plugin store, search **Quota First Router**, and install it. This source is the author's registry, not a claim of official-store approval. The official registry PR and its status are tracked in [release status](docs/release-status.md).
 
-Alternatively download the Linux ZIP and checksums from [GitHub Releases](https://github.com/kazimshah39/quota-first-router/releases), verify SHA-256, and extract the library into CPA's plugin directory. The installer validates checksums automatically; manual extraction requires your own checksum check.
+Alternatively download the ZIP matching your OS/architecture and checksums from [GitHub Releases](https://github.com/kazimshah39/quota-first-router/releases), verify SHA-256, and extract the library into CPA's plugin directory. The installer validates checksums automatically; manual extraction requires your own checksum check.
 
 See [operations](docs/operations.md) before enabling the plugin. Start with:
 
@@ -74,7 +74,7 @@ plugins:
       request_timeout: 10s
 ```
 
-For a first installation, copy a regular `.so` file into the plugin directory. Never overwrite a potentially mapped library during an upgrade; see [version upgrades](docs/operations.md#native-version-upgrades). CPA 8.1.0 supports loading/configuring it through its existing plugin management flow; verify registration, never assume copying alone succeeded. `priority` above orders scheduler **plugins**, not account tiers. CPA 8.1.0 invokes only its highest-priority active scheduler; another scheduler can supersede this one.
+For a first installation, copy a regular platform library (`.so`, `.dylib`, `.dll`) into the plugin directory. Never overwrite a potentially mapped library during an upgrade; see [version upgrades](docs/operations.md#native-version-upgrades). CPA 8.1.0 supports loading/configuring it through its existing plugin management flow; verify registration, never assume copying alone succeeded. `priority` above orders scheduler **plugins**, not account tiers. CPA 8.1.0 invokes only its highest-priority active scheduler; another scheduler can supersede this one.
 
 - **shadow**: records proposed selection; returns no account choice or exclusions.
 - **active**: chooses accounts and excludes fresh exhausted accounts.
