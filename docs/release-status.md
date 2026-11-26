@@ -9,7 +9,7 @@
 - Production loaded the exact public library from new `quota-first-router-v0.1.2.so` after protected backup and shadow verification; no shared-service restart or mapped-file overwrite. Live matrix **26/26** across four available models/protocols/streaming/concurrency/tool call. Global last-decision snapshots are not per-request attribution evidence during shared/parallel traffic; a separate **six-request uncontended counter-checked gate** verified independent tier/reset order, actual read-only usage attribution, forced tool call and output follow-up. It passed after natural observation. All nine accounts had **three distinct successful natural quota snapshots over 180.4s**, no worker failure, active **1m polling / 5m max age**. Unrelated config, all nine tier/disabled records, prior libraries and paused-monitor hashes were preserved.
 - [Platform issue #1](https://github.com/kazimshah39/quota-first-router/issues/1) is **closed as completed**. New registry-only [store PR #404](https://github.com/router-for-me/CLIProxyAPI-Plugins-Store/pull/404) is **open, mergeable**, changing only registry.json. **Official default-store listing remains pending maintainer merge**; submission is not acceptance. Closed #402 was updated with the new evidence and stays closed.
 
-See [platform support](platform-support.md), [release notes](releases/0.1.2.md), [native evidence](evidence/0.1.2/README.md) and [sanitized public/production results](evidence/0.1.2/public-verification.json). Monitoring remains paused and excluded. Existing v0.1.0/v0.1.1 releases and assets were not modified.
+See [platform support](platform-support.md), [release notes](releases/0.1.2.md), [native evidence](evidence/0.1.2/README.md) and [sanitized public/production results](evidence/0.1.2/public-verification.json). The monitor is excluded from v0.1.2. Its separate [unpublished 0.2.0 candidate](releases/0.2.0.md) has not been pushed, released or deployed. Existing v0.1.0/v0.1.1 releases and assets were not modified.
 
 ## v0.1.1 — published and deployed
 
@@ -49,11 +49,9 @@ The published release was discovered through the author's public custom registry
 
 The library downloaded by that installer passed the full synthetic routing suite again. This is not a claim of a two-version upgrade test: v0.1.0 is the first version. The CI/release checks also passed a two-minute soak under GC pressure, concurrent/streaming tests and clean-source reproducibility.
 
-## Official plugin-store listing — PR closed; platform issue open
+## Official plugin-store listing — maintainer review pending
 
-**PR:** https://github.com/router-for-me/CLIProxyAPI-Plugins-Store/pull/402
-
-Read-only recheck on 2026-11-26: PR #402 is **closed, not merged**; [issue #1](https://github.com/kazimshah39/quota-first-router/issues/1) is **open**. The audit requires Darwin, Linux and Windows × amd64/arm64 binaries; this was a platform-coverage rejection, not a security rejection. Public v0.1.0/v0.1.1 still contain only Linux amd64 ZIPs plus checksums; source archives do not count. No new PR, comment or issue closure has been made. The upstream maintainers control any future review. This plugin is **not claimed to be present in the default official store**.
+[PR #404](https://github.com/router-for-me/CLIProxyAPI-Plugins-Store/pull/404) is the existing registry-only submission for published v0.1.2. Read-only recheck on 2026-11-26: **open, mergeable, not merged**, with no review or comments. The [official default registry](https://raw.githubusercontent.com/router-for-me/CLIProxyAPI-Plugins-Store/main/registry.json) still does not contain `quota-first-router`. No official-source installation is claimed; verify discovery, hashes, shadow/1m/5m defaults and rollback from that source after maintainer merge. Historical PR #402 is closed and platform issue #1 is resolved. No duplicate submission or feature registry change.
 
 Install now by adding this custom registry source, retaining existing sources:
 

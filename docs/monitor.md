@@ -18,11 +18,26 @@ HTML/CSS/JS resources are public but generic and contain no diagnostics. Private
 - **Refresh/errors:** last successful quota-read age, next scheduled attempt and current sanitized error/failure count. A recovered incident is historical, not a current failure.
 - **Latest/recent scheduler choices:** active choice, shadow proposal or delegation, timestamp/model/stream/mode. Multiple scheduler decisions may belong to one retried request; there is no reliable per-request correlation in this API.
 
+### Selection reasons
+
+| Displayed reason | Meaning |
+| --- | --- |
+| Earliest five-hour reset in highest usable tier | The chosen account has the earliest known five-hour reset among usable accounts in the highest usable tier. |
+| Usable quota; reset time unknown | A usable account was chosen without a known five-hour reset, after known resets in that tier. |
+| Unknown quota in highest usable tier; delegated to CPA | The plugin did not have enough current quota evidence in a higher tier to safely pick or descend. |
+| No observed usable quota / No known usable quota | The plugin could not make a supported choice; this is not evidence of what CPA served. |
+| Not exclusively Codex; delegated to CPA | The request's provider eligibility was outside this plugin's scope. |
+| Quota usable / exhausted / stale / unknown | The cache permits this selection, has a known blocking limit, is too old, or has insufficient quota data, respectively. |
+| Account disabled / Credential changed | The host reports disabled, or the credential identity changed and the cached quota is unsafe to reuse. |
+| Reset passed; waiting for fresh quota | A cached reset time passed; refresh must confirm the actual allowance. |
+
+Polling incidents show sanitized codes such as `quota_http_503`; `credential_list_failed` means the host roster read failed, and `worker_failed` means the monitoring worker reported a failure. `Recovered` means a later quota/roster read succeeded. These codes do not report inference failures.
+
 ## Refresh and history limits
 
 The UI fetches cached diagnostics every five seconds while visible. **Pause updates** stops automatic refresh and aborts an in-flight read; **Refresh now** remains available. Hidden tabs suspend/abort reads; returning visible resumes unless paused. Only one read is in flight; requests have a 10s timeout and bounded backoff up to 60s. Failures retain clearly labeled stale data except authentication rejection, which clears it. UI reads do not trigger provider quota GETs, inference, settings changes or scheduler picks. Quota polling remains 1m, max age 5m, timeout 10s, reconciliation 30s by default.
 
-History is memory-only: up to **200 decisions**, **200 coalesced incident records**, **100 candidate/exclusion details per decision**, **1,000 account rows**, bounded labels and **8 MiB API response**. Eviction/truncation counts are shown. Long labels are truncated; do not use the display as a unique identifier for colliding long names. Epoch/start time changes on restart/reconfiguration, clearing history/counters. No database, durable export, alerts or raw provider error bodies. Account labels may contain personal information, so access is management-only. All rendering uses text nodes, never account-provided HTML.
+History is memory-only: up to **200 decisions**, **200 coalesced incident records**, **100 candidate/exclusion details per decision**, **1,000 account rows**, bounded labels/model quota details and **8 MiB API response**. Eviction/truncation counts are shown. If the cached view cannot fit within the response cap, the API returns 503 rather than an oversized response. Long labels are truncated; do not use the display as a unique identifier for colliding long names. Epoch/start time changes on restart/reconfiguration, clearing history/counters. No database, durable export, alerts or raw provider error bodies. Account labels may contain personal information, so access is management-only. All rendering uses text nodes, never account-provided HTML.
 
 Disabled/unloaded plugins may lose both page and API registration. A 404 means unavailable, not confirmed disabled without host evidence. Use the host's Plugin management to check enablement/rollback. Resource CSP permits same-origin scripts/styles/connect/framing only; a new external dashboard origin is not automatically supported.
 

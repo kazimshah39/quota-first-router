@@ -62,6 +62,30 @@ func TestRuntimeProtocol(t *testing.T) {
 		t.Fatal(string(raw))
 	}
 }
+
+type panickingMonitorHost struct{ fakeHost }
+
+func (*panickingMonitorHost) List() ([]pluginapi.HostAuthFileEntry, error) {
+	panic("private panic detail")
+}
+
+func TestMonitorWorkerPanicRecovery(t *testing.T) {
+	cfg, _ := decodeConfig(nil)
+	p := &pluginRuntime{host: &panickingMonitorHost{}}
+	defer p.stop()
+	p.configure(cfg)
+	select {
+	case <-p.done:
+	case <-time.After(time.Second):
+		t.Fatal("panicking worker did not stop")
+	}
+	r := p.management(pluginapi.ManagementRequest{Method: "GET", Path: monitorPath})
+	var s monitorSnapshot
+	if r.StatusCode != 200 || json.Unmarshal(r.Body, &s) != nil || s.State != "failed" || !s.WorkerFailed || len(s.History.Incidents) != 1 || s.History.Incidents[0].Code != "worker_failed" || strings.Contains(string(r.Body), "private panic detail") {
+		t.Fatal("worker panic was not reported safely", string(r.Body))
+	}
+}
+
 func TestRefreshFailuresAndInvalidation(t *testing.T) {
 	h := &fakeHost{entries: []pluginapi.HostAuthFileEntry{{ID: "a", AuthIndex: "1", Provider: "codex", Email: "first"}}, raw: json.RawMessage(`{"type":"codex","access_token":"secret","account_id":"acct"}`)}
 	f := &fakeFetcher{}
