@@ -1,6 +1,6 @@
 # Comprehensive validation matrix
 
-Target: CPA 8.1.0 (`69607634`), Linux amd64/glibc 2.34+. Tests use synthetic credentials unless explicitly described as live. A pass is not a claim that every provider behavior or future CPA version is supported.
+Historical public-release target: CPA 8.1.0 (`69607634`), Linux amd64/glibc 2.34+. Local 0.1.2 six-target build and native acceptance status: [platform evidence](platform-support.md). The five nonlocal native results remain pending. Tests use synthetic credentials unless explicitly described as live. A pass is not a claim that every provider behavior or future CPA version is supported.
 
 ## Automated coverage
 
@@ -44,4 +44,4 @@ Chrome DevTools browser testing verified plugin discovery, five declared fields,
 - Cancellation checks client disconnect and subsequent health, not a provider-side billing/refund or remote-abort guarantee.
 - No real quota was deliberately exhausted. Failure/exhaustion tests use network-isolated fixtures. Long-term daily reliability is not established by a ten-minute soak.
 - The native artifact can remain mapped after disable. The optional canary now requires an already installed library; deployments use new versioned files. Disposable-host restart/reinstall and live version switching are distinct tests.
-- Default official-store availability still depends on upstream review of PR #402. A custom registry is usable now; an open PR is not approval.
+- Official-store PR #402 is closed; issue #1 remains open for six-platform coverage. The custom registry serves existing Linux releases. No claim of official listing or full-platform runtime acceptance is made.

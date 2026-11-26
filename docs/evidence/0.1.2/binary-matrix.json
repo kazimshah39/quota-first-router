@@ -1,0 +1,78 @@
+[
+  {
+    "goos": "darwin",
+    "goarch": "amd64",
+    "entry": "cliproxy_plugin_init",
+    "dependencies": [
+      "/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation",
+      "/System/Library/Frameworks/Security.framework/Versions/A/Security",
+      "/usr/lib/libSystem.B.dylib",
+      "/usr/lib/libobjc.A.dylib",
+      "/usr/lib/libresolv.9.dylib"
+    ],
+    "binary_minimum": "13.0.0",
+    "archive_sha256": "5f28982086cf6142c8b1673be3d69b8205e79836f39934f13a207b81b36fa973"
+  },
+  {
+    "goos": "darwin",
+    "goarch": "arm64",
+    "entry": "cliproxy_plugin_init",
+    "dependencies": [
+      "/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation",
+      "/System/Library/Frameworks/Security.framework/Versions/A/Security",
+      "/usr/lib/libSystem.B.dylib",
+      "/usr/lib/libobjc.A.dylib",
+      "/usr/lib/libresolv.9.dylib"
+    ],
+    "binary_minimum": "13.0.0",
+    "archive_sha256": "469cfad62a53a115a1b94b2abdeef684a8755eb7eafd7102c23d1c9d3dd3a052"
+  },
+  {
+    "goos": "linux",
+    "goarch": "amd64",
+    "entry": "cliproxy_plugin_init",
+    "dependencies": [
+      "libc.so.6"
+    ],
+    "binary_minimum": "GLIBC_2.34",
+    "archive_sha256": "8322b1a5b11e52dcf481c0affd0d483694198b5c4d2bdd3af130692bbb306a4c"
+  },
+  {
+    "goos": "linux",
+    "goarch": "arm64",
+    "entry": "cliproxy_plugin_init",
+    "dependencies": [
+      "libc.so.6"
+    ],
+    "binary_minimum": "GLIBC_2.34",
+    "archive_sha256": "838c3ca7f5d7decbd448674bb11773e190b71dfdc8a0c7303d3844038bcc9cc0"
+  },
+  {
+    "goos": "windows",
+    "goarch": "amd64",
+    "entry": "cliproxy_plugin_init",
+    "dependencies": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll"
+    ],
+    "binary_minimum": "PE subsystem 6.1 (not the Go runtime minimum)",
+    "archive_sha256": "36e5b751e23a0c4e5c54025c5d6c7704de62cb6beafd74765b1fffb43d495d87"
+  },
+  {
+    "goos": "windows",
+    "goarch": "arm64",
+    "entry": "cliproxy_plugin_init",
+    "dependencies": [
+      "KERNEL32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll"
+    ],
+    "binary_minimum": "PE subsystem 6.1 (not the Go runtime minimum)",
+    "archive_sha256": "c457744ea4fc6b0fadda19707659451069d6228afb44d0d59c9b381e4862263d"
+  }
+]

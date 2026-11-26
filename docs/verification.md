@@ -2,7 +2,7 @@
 
 ## Compatibility and public checks
 
-The release targets **CPA 8.1.0**, native ABI 1/schema 10, **Linux amd64/glibc 2.34+** only. The module requires Go 1.26.10+. Build flags enforce baseline x86-64 instructions.
+Published releases target **CPA 8.1.0**, native ABI 1/schema 10, **Linux amd64/glibc 2.34+** only. The local 0.1.2 candidate builds six targets; native acceptance is currently Linux amd64 only. See [platform support](platform-support.md) for exact toolchains, commands, binary/runtime minima and pending tests. The candidate pins Go 1.26.10 and baseline x86-64 instructions.
 
 Reproduce:
 
@@ -11,7 +11,7 @@ make GO=go test package cpa
 make GO=go soak-test SOAK_SECONDS=120
 ```
 
-The CPA download is verified against its release checksums and a pinned archive SHA256. The plugin ZIP contains only its correctly named root library, LICENSE, and THIRD_PARTY_NOTICES.md; checksums use SHA-256. Public CI has no personal-account credentials. Release workflows require tag/source version agreement and repeat the relevant checks before creating a draft.
+The CPA download is verified against its release checksums and a pinned archive SHA256. The plugin ZIP contains only its correctly named root library, LICENSE, and THIRD_PARTY_NOTICES.md; checksums use SHA-256. Public CI has no personal-account credentials. The candidate release workflow has manual dispatch only: explicit publication input, approval environment, existing tag/source agreement, successful exact-source CI run and six matching native records are required. Normal CI and tag pushes cannot create a draft or public release. Local lint is not a hosted workflow pass.
 
 ## Coverage
 
@@ -47,4 +47,4 @@ Account tier priorities and enabled/disabled flags were unchanged. The live expe
 
 Published v0.1.0 installer checks passed against real CPA: public custom-source discovery, actual GitHub ZIP/checksum download, shadow 1m/5m defaults, active/disable, same-version reinstall after isolated-host restart, followed by the full routing suite against that installed library. See [release status](release-status.md) for asset hashes, successful Actions run links and the official listing PR.
 
-See GitHub Actions for published-commit results and docs/operations.md for install/rollback steps. Official-store availability depends on the upstream registry PR; custom-source installation can be used independently.
+See GitHub Actions for published-commit results and docs/operations.md for install/rollback steps. Official-store PR #402 is closed for incomplete platforms; issue #1 is open. Custom-source installation of the existing Linux release is independent. No resubmission/publication is authorized by local implementation approval.

@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main]
+    branches: [main, platform-readiness]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -10,29 +10,107 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  linux-amd64:
+  build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version: '1.26.10'
-          cache: true
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
       - run: make GO=go test package cpa
-      - run: docker pull golang:1.26-bookworm@sha256:a688600ca24f8a4d3ca77f95b0dd40704a9fc787c826660eb7ba0b641b8b175d
       - run: make GO=go soak-test SOAK_SECONDS=120
-      - name: Verify clean public export
+      - name: Build pinned six-target matrix
+        run: python3 scripts/build_matrix.py --go go --allow-sdk-download
+      - name: Verify clean export uses no references or private files
         run: |
           tmp=$(mktemp -d)
           git archive HEAD | tar -x -C "$tmp"
-          make -C "$tmp" GO=go test package
-          version=$(make -s version)
-          cmp "dist/release/quota-first-router_${version}_linux_amd64.zip" "$tmp/dist/release/quota-first-router_${version}_linux_amd64.zip"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+          python3 "$tmp/scripts/build_matrix.py" --go go --tools "$PWD/.local/toolchains" --allow-sdk-download
+          for archive in dist/release/*.zip; do cmp "$archive" "$tmp/dist/release/$(basename "$archive")"; done
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: linux-amd64-release
+          name: candidate-packages
+          path: dist/release/*
+          if-no-files-found: error
+  native:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: linux, arch: amd64, runner: ubuntu-24.04, race: true}
+          - {os: linux, arch: arm64, runner: ubuntu-24.04-arm, race: true}
+          - {os: darwin, arch: amd64, runner: macos-15-intel, race: true}
+          - {os: darwin, arch: arm64, runner: macos-15, race: true}
+          - {os: windows, arch: amd64, runner: windows-2025, race: true}
+          - {os: windows, arch: arm64, runner: windows-11-arm, race: false}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: '1.26.10'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: candidate-packages
+          path: dist/release
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Native compiler setup
+        run: python3 scripts/native_setup.py --output "$GITHUB_ENV"
+      - name: Unit and vet checks on native architecture
+        run: |
+          if [ '${{ matrix.race }}' = true ]; then go test -race -count=1 ./...; else go test -count=1 ./...; echo 'Go race detector unsupported on windows/arm64; not claimed'; fi
+          go vet ./...
+          python3 -m unittest discover -s tests -p 'test_*.py'
+      - name: Unpack exact validated candidate and pinned CPA host
+        run: |
+          python3 scripts/release.py matrix --output dist/release
+          python3 scripts/release.py cpa --goos '${{ matrix.os }}' --goarch '${{ matrix.arch }}'
+          python3 scripts/unpack_candidate.py --goos '${{ matrix.os }}' --goarch '${{ matrix.arch }}'
+      - name: Native CPA routing and polling acceptance
+        run: |
+          ext=so; exe=cli-proxy-api
+          if [ '${{ matrix.os }}' = darwin ]; then ext=dylib; fi
+          if [ '${{ matrix.os }}' = windows ]; then ext=dll; exe=cli-proxy-api.exe; fi
+          python3 tests/native_host.py --disposable-native-runner --cpa "dist/cpa/$exe" --library "dist/native/quota-first-router.$ext" --archive "dist/release/quota-first-router_$(python3 scripts/release.py version)_${{ matrix.os }}_${{ matrix.arch }}.zip" --output 'dist/release/native-${{ matrix.os }}-${{ matrix.arch }}.json' --seconds 75
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: native-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/release/native-*.json
+          if-no-files-found: error
+  acceptance:
+    needs: [build, native]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: candidate-packages
+          path: dist/release
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          pattern: native-*
+          merge-multiple: true
+          path: dist/release
+      - run: python3 scripts/release.py matrix --output dist/release --require-native
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: verified-six-platform-release
           path: dist/release/*
           if-no-files-found: error

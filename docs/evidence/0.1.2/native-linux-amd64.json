@@ -1,0 +1,28 @@
+{
+  "goos": "linux",
+  "goarch": "amd64",
+  "native": true,
+  "passed": true,
+  "cpa_version": "8.1.0",
+  "library_sha256": "65e6472287bab96bee464644eb0a410bb9af198c4a8c113a5a5d8eef890ccf25",
+  "cpa_sha256": "87162244c0c2b5ff151191c40a406705f722828e1e56479bb7f5f423739893f9",
+  "inspection": {
+    "goos": "linux",
+    "goarch": "amd64",
+    "entry": "cliproxy_plugin_init",
+    "dependencies": [
+      "libc.so.6"
+    ],
+    "binary_minimum": "GLIBC_2.34"
+  },
+  "at": "2026-11-26T05:26:45.708095+00:00",
+  "soak_seconds": 75,
+  "soak_requests": 587,
+  "quota_gets": 18,
+  "local_store_install": true,
+  "archive_sha256": "8322b1a5b11e52dcf481c0affd0d483694198b5c4d2bdd3af130692bbb306a4c",
+  "host_os": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+  "host_machine": "x86_64",
+  "go_version": "go version go1.26.10 linux/amd64",
+  "invalid_library_rejected": true
+}

@@ -1,5 +1,9 @@
 # Release status
 
+## v0.1.2 — local candidate; not published or ready for release
+
+Six genuine platform ZIPs and sorted checksums are prepared locally. Linux amd64 passed exact-package native CPA 8.1.0 loading, local store install and routing/polling/rollback tests. The other five native acceptances and hosted CI remain pending. See [platform support](platform-support.md), [candidate review record](releases/0.1.2.md) and [sanitized evidence](evidence/0.1.2/README.md). Monitoring is paused and excluded. No new release/tag/PR/remote workflow or production change was made. Existing public releases remain immutable.
+
 ## v0.1.1 — published and deployed
 
 - Release: https://github.com/kazimshah39/quota-first-router/releases/tag/v0.1.1
@@ -38,11 +42,11 @@ The published release was discovered through the author's public custom registry
 
 The library downloaded by that installer passed the full synthetic routing suite again. This is not a claim of a two-version upgrade test: v0.1.0 is the first version. The CI/release checks also passed a two-minute soak under GC pressure, concurrent/streaming tests and clean-source reproducibility.
 
-## Official plugin-store listing — PR submitted, review pending
+## Official plugin-store listing — PR closed; platform issue open
 
 **PR:** https://github.com/router-for-me/CLIProxyAPI-Plugins-Store/pull/402
 
-At submission the PR is open and changes only registry.json by appending our metadata. The upstream maintainers control review and merge. Until it is merged and clients refresh the registry, this plugin is **not claimed to be present in the default official store**.
+Read-only recheck on 2026-11-26: PR #402 is **closed, not merged**; [issue #1](https://github.com/kazimshah39/quota-first-router/issues/1) is **open**. The audit requires Darwin, Linux and Windows × amd64/arm64 binaries; this was a platform-coverage rejection, not a security rejection. Public v0.1.0/v0.1.1 still contain only Linux amd64 ZIPs plus checksums; source archives do not count. No new PR, comment or issue closure has been made. The upstream maintainers control any future review. This plugin is **not claimed to be present in the default official store**.
 
 Install now by adding this custom registry source, retaining existing sources:
 

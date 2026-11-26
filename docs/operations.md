@@ -9,7 +9,7 @@
 
 ## Shadow-first canary
 
-Place `quota-first-router.so` as a regular file in the resolved platform plugin directory, then configure it with `enabled: true`, `priority: 100`, `mode: shadow`. Use the existing management config API (or the dashboard plugin config editor). Verify `registered` and `effective_enabled` in the plugins list and authenticated status; do not assume a file copy loaded it. Existing plugin settings must be preserved.
+For the published Linux release, place `quota-first-router.so` as a regular file in the resolved platform plugin directory, then configure it with `enabled: true`, `priority: 100`, `mode: shadow`. Use the existing management config API (or the dashboard plugin config editor). Verify `registered` and `effective_enabled` in the plugins list and authenticated status; do not assume a file copy loaded it. Existing plugin settings must be preserved.
 
 Wait for trustworthy quota snapshots. Check every enabled Codex account: five-hour utilization/reset, long-window quota, errors and freshness. Do not infer correct behavior from a status endpoint existing. Send a minimal normal Codex request and check that `last_decision` proposes the nearest reset in the highest usable tier, while shadow mode changes no actual choice. Compare with an independently computed snapshot order. Existing traffic may update `last_decision`; use an isolated canary instance if request attribution is ambiguous.
 
@@ -24,6 +24,10 @@ Run a real-account canary only with the operator's authorization. It can consume
 PATCH `/v0/management/plugins/quota-first-router/enabled` with `{"enabled":false}`. Verify `effective_enabled` is false and ordinary routing works again. This restores existing CPA routing without changing tiers or interrupting running requests. Keep the plugin installed but disabled after a canary unless an ongoing active deployment was explicitly requested. Confirm account priority/disabled fields remain unchanged; token refreshes performed by CPA itself are not routing changes.
 
 If full config restoration is needed, reconcile unrelated concurrent edits first; never overwrite newer user changes blindly. Prefer disabling/removing only this plugin's config entry. Replace native artifacts only while unloaded. Do not kill the shared proxy to perform routine rollback.
+
+## Candidate platform limits
+
+The local 0.1.2 candidate is not published or approved for production. Its six archives use `.so` (Linux), `.dylib` (Darwin), and `.dll` (Windows). Only Linux amd64 has passed native CPA acceptance so far. Follow [platform-support.md](platform-support.md) for exact packages, pinned tools, runtime limits and disposable-native tests. Never treat a valid header/export as proof of loadability. Native CA fixtures must not be run on a personal/shared macOS or Windows machine. Monitoring is deferred.
 
 ## Native version upgrades
 

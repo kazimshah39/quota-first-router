@@ -25,7 +25,7 @@ Higher numeric priority means a higher tier. The plugin never changes priorities
 
 ## Build and checks
 
-Linux amd64 with glibc 2.34+ is the currently verified platform. Install Go **1.26.10+**, a C compiler, make, and Python 3. The pinned CPA SDK can trigger Go's normal toolchain download. Native runtime details on other platforms require their own integration tests; Intel macOS is not supported by this build.
+Linux amd64 with glibc 2.34+ is the currently runtime-verified platform. Install Go **1.26.10**, a C compiler, make, and Python **3.12+**. The pinned CPA SDK can trigger Go's normal toolchain download. The local **0.1.2 candidate** builds all six required platforms, but five native runtime acceptances remain pending. Cross-compilation is not a support claim. See [platform support and candidate verification](docs/platform-support.md) for pinned toolchains, macOS TLS isolation, commands and exact limits.
 
 ```sh
 make GO=go test
@@ -46,7 +46,7 @@ Set `GO=go` to use your installed Go. `make cpa` downloads CPA 8.1.0 and verifie
 
 **Supported: CPA 8.1.0, Linux amd64/glibc 2.34+.** Other platforms are not included in the current release.
 
-While the official store listing is awaiting review, add this custom registry source in CPA's configuration, keeping any existing sources:
+Official-store PR **#402 is closed** for missing platform coverage; issue **#1 is open**. No new PR has been submitted. To install the existing Linux-amd64 public release, add this custom registry source in CPA's configuration, keeping any existing sources:
 
 ```yaml
 plugins:
@@ -111,6 +111,7 @@ Use existing CPA management authentication. The status response contains mode, s
 - [Verification evidence](docs/verification.md)
 - [Comprehensive test matrix](docs/test-matrix.md)
 - [Current release and deployment results](docs/release-status.md)
+- [Six-platform candidate and native acceptance](docs/platform-support.md)
 
 `references/` contains four independent, ignored Git clones for research (reset-router, CPA, 9router, and official OpenAI Codex). They are not submodules or build dependencies. MIT-licensed code was adapted from WebDevCaptain/quota-reset-router; required attribution is retained. Plugin metadata points to [this project](https://github.com/kazimshah39/quota-first-router); upstream code attribution remains in LICENSE and THIRD_PARTY_NOTICES.md.
 
