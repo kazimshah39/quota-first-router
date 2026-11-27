@@ -23,6 +23,26 @@ func warmupSnapshot(at, reset time.Time, used float64) quotaSnapshot {
 	}
 }
 
+func TestWarmupDefaultModel(t *testing.T) {
+	const enabled = "warmup_after_reset: true\nwarmup_cpa_url: http://127.0.0.1:8317\n"
+	// Use an absolute path on every supported test platform.
+	base := enabled + fmt.Sprintf("warmup_state_dir: %q\n", t.TempDir())
+	for _, test := range []struct{ suffix, want string }{
+		{"", "gpt-6-luna"},
+		{"warmup_model: \"\"\n", "gpt-6-luna"},
+		{"warmup_model: null\n", "gpt-6-luna"},
+		{"warmup_model: gpt-5.6-terra\n", "gpt-5.6-terra"},
+	} {
+		cfg, err := decodeConfig([]byte(base + test.suffix))
+		if err != nil || !cfg.WarmupEnabled || cfg.WarmupModel != test.want {
+			t.Fatalf("config %q selected %q, want %q (%v)", test.suffix, cfg.WarmupModel, test.want, err)
+		}
+	}
+	if _, err := decodeConfig([]byte(base + "warmup_model: not-a-model\n")); err == nil {
+		t.Fatal("accepted an invalid explicit model")
+	}
+}
+
 func TestWarmupNaturalReset(t *testing.T) {
 	boundary := time.Unix(2_000_000_000, 0)
 	var state warmupWindowState

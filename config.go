@@ -14,6 +14,7 @@ import (
 
 const pluginID = "quota-first-router"
 const pluginVersion = "0.2.0"
+const defaultWarmupModel = "gpt-6-luna"
 
 type config struct {
 	PollInterval   time.Duration `yaml:"poll_interval" json:"-"`
@@ -32,7 +33,7 @@ func decodeConfig(raw []byte) (config, error) {
 	input := struct {
 		config     `yaml:",inline"`
 		LegacyMode string `yaml:"mode"`
-	}{config: config{PollInterval: time.Minute, MaxAge: 5 * time.Minute, RequestTimeout: 10 * time.Second}}
+	}{config: config{PollInterval: time.Minute, MaxAge: 5 * time.Minute, RequestTimeout: 10 * time.Second, WarmupModel: defaultWarmupModel}}
 	if len(raw) != 0 {
 		if err := yaml.Unmarshal(raw, &input); err != nil {
 			return config{}, errors.New("invalid plugin configuration")
@@ -43,6 +44,9 @@ func decodeConfig(raw []byte) (config, error) {
 		return config{}, errors.New("legacy mode must be removed before enabling the plugin")
 	}
 	cfg := input.config
+	if strings.TrimSpace(cfg.WarmupModel) == "" {
+		cfg.WarmupModel = defaultWarmupModel
+	}
 	if cfg.PollInterval < time.Minute || cfg.PollInterval > time.Hour {
 		return config{}, errors.New("poll_interval must be between 1m and 1h")
 	}
@@ -59,7 +63,7 @@ func decodeConfig(raw []byte) (config, error) {
 		}
 	}
 	if cfg.WarmupEnabled && (!filepath.IsAbs(cfg.WarmupDirectory) || !validWarmupEndpoint(cfg.WarmupEndpoint) || !validWarmupModel(cfg.WarmupModel)) {
-		return config{}, errors.New("warmup requires a private state directory, numeric loopback CPA URL and explicit model")
+		return config{}, errors.New("warmup requires a private state directory, numeric loopback CPA URL and valid model")
 	}
 	return cfg, nil
 }

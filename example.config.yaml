@@ -12,7 +12,7 @@ plugins:
       request_timeout: 10s
       # Optional. See docs/operations.md for private state provisioning.
       warmup_after_reset: false
-      # warmup_model: gpt-5.6-terra
+      # warmup_model: gpt-6-luna  # Default; override only if needed.
       # warmup_cpa_url: http://127.0.0.1:8317
       # warmup_state_dir: /path/to/private/quota-first-router-warmup
       # Mirror requests.proxy-url if CPA has a global proxy configured.

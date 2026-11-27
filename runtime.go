@@ -168,7 +168,7 @@ func registration() any {
 				{Name: "proxy_url", Type: pluginapi.ConfigFieldTypeString, Description: "Set to CPA requests.proxy-url if configured; per-account proxy overrides this."},
 				{Name: "request_timeout", Type: pluginapi.ConfigFieldTypeString, Default: "10s", Description: "Background quota request timeout, 1s to 30s. Default 10s."},
 				{Name: "warmup_after_reset", Type: pluginapi.ConfigFieldTypeBoolean, Default: false, Description: "Warm up eligible Codex OAuth accounts after a five-hour reset. Uses a small amount of quota. Off by default."},
-				{Name: "warmup_model", Type: pluginapi.ConfigFieldTypeString, Description: "Lightweight Codex model for warmup; must be available on the account."},
+				{Name: "warmup_model", Type: pluginapi.ConfigFieldTypeString, Default: defaultWarmupModel, Description: "Codex model for warmup; must be available on the account. Defaults to gpt-6-luna."},
 				{Name: "warmup_cpa_url", Type: pluginapi.ConfigFieldTypeString, Description: "Numeric loopback HTTP origin for the local CPA management API."},
 				{Name: "warmup_state_dir", Type: pluginapi.ConfigFieldTypeString, Description: "Absolute path to the private warmup state directory provisioned by the operator."},
 			}},

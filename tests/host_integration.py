@@ -301,7 +301,7 @@ plugins:
     {PLUGIN}:
       enabled: true
       priority: 100
-{f'      warmup_after_reset: true{chr(10)}      warmup_model: {MODEL}{chr(10)}      warmup_cpa_url: http://127.0.0.1:18318{chr(10)}      warmup_state_dir: {warmup_state}' if warmup_e2e else ''}
+{f'      warmup_after_reset: true{chr(10)}      warmup_cpa_url: http://127.0.0.1:18318{chr(10)}      warmup_state_dir: {warmup_state}' if warmup_e2e else ''}
     test-scheduler:
       enabled: false
       priority: 200
@@ -396,6 +396,7 @@ plugins:
                     print('WARMUP FIXTURE', outcome(), 'paused:', view().get('warmup_error'), 'quota calls:', len(quota_calls), flush=True)
                     raise
                 assert messages == ['b-sooner'], (messages, outcome())
+                assert upstream_requests[0]['model'] == 'gpt-6-luna', 'warmup did not use its default model'
                 sent = wait(lambda: outcome().get('b-sooner.json') in ('sent', 'confirmed'), 'warmup completed')
                 assert sent and all(outcome().get(f'{x}.json') == 'quota_blocked' for x in ['a-later','c-third','d-backup']), outcome()
                 state = json.loads((warmup_state/'warmup-attempts.json').read_bytes())
