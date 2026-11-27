@@ -44,7 +44,7 @@ Set `GO=go` to use your installed Go. `make cpa` downloads CPA 8.1.0 and verifie
 
 ## Install and observe
 
-**CPA 8.1.0: Linux, macOS and Windows, each amd64/arm64.** Version 0.1.2 provides all six native-tested packages. Linux requires glibc 2.34+; macOS binary deployment minimum is 13.0; Windows was tested on Server 2025 amd64 and Windows 11 ARM64. See [platform support](docs/platform-support.md) for precise tested/runtime limits. Older v0.1.0/v0.1.1 releases remain Linux-amd64 only.
+**CPA 8.1.0: Linux, macOS and Windows, each amd64/arm64.** [Version 0.2.0](https://github.com/kazimshah39/quota-first-router/releases/tag/v0.2.0) provides all six native-tested packages. Linux requires glibc 2.34+; macOS binary deployment minimum is 13.0; Windows was tested on Server 2025 amd64 and Windows 11 ARM64. See [platform support](docs/platform-support.md) for precise tested/runtime limits. Older v0.1.0/v0.1.1 releases remain Linux-amd64 only.
 
 The plugin is listed in the official CPA registry. Refresh the plugin store and search for **Quota First Router**. If you use a separate registry, the author’s source is also available; keep any existing sources when adding it:
 
@@ -54,7 +54,7 @@ plugins:
     - https://raw.githubusercontent.com/kazimshah39/quota-first-router/main/registry.json
 ```
 
-Then refresh the plugin store, search **Quota First Router**, and install it. This source is the author's registry, not a claim of official-store approval. The official registry PR and its status are tracked in [release status](docs/release-status.md).
+Then refresh the plugin store, search **Quota First Router**, and install it. See [release status](docs/release-status.md) for the official store installation check.
 
 Alternatively download the ZIP matching your OS/architecture and checksums from [GitHub Releases](https://github.com/kazimshah39/quota-first-router/releases), verify SHA-256, and extract the library into CPA's plugin directory. The installer validates checksums automatically; manual extraction requires your own checksum check.
 

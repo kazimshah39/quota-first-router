@@ -1,8 +1,12 @@
 # Release status
 
-## v0.2.0 — release validation
+## v0.2.0 — published, six native targets verified
 
-The 0.2.0 source adds the account quota dashboard, Free-account handling, optional five-hour warmup, and built-in help. The release gate requires all six exact native ZIPs. See [0.2.0 release notes](releases/0.2.0.md) for features, upgrade steps and platform limits. The live private preview remains a separate deployment.
+- [Immutable GitHub release](https://github.com/kazimshah39/quota-first-router/releases/tag/v0.2.0): Linux, macOS and Windows ZIPs for amd64 and arm64, plus `checksums.txt`. The public downloads matched the tested artifacts byte for byte.
+- [Exact-source CI 45948173964](https://github.com/kazimshah39/quota-first-router/actions/runs/45948173964), source `c612438`: six matching native CPA 8.1.0 store/routing/monitor runs, hash-bound artifact verification, clean-export reproducibility and Linux soak passed. Windows arm64 race is unsupported; Windows warmup is disabled.
+- [Publication run 45949572179](https://github.com/kazimshah39/quota-first-router/actions/runs/45949572179) passed. A disposable CPA 8.1.0 installed 0.2.0 from the official default registry and verified its monitor, help, defaults, disable and reinstall. The installed Linux library matched the tested artifact (`c08dd9b69e6f08e2127f6acb157f1a061fd03099c73e5299b2305a222017b8b6`).
+- The released Linux amd64 library also passed disposable CPA 8.1.0 idle warmup: exact GPT-6 Luna pin, Free and exhausted accounts skipped, one durable attempt, and a confirmed new timer. This is separate from the six-platform routing/monitor checks.
+- See [release notes](releases/0.2.0.md) for features, upgrade steps and warmup requirements. The private preview is a separate deployment and was not changed by publication.
 
 ## v0.1.2 — published, six native targets verified, deployed active
 
@@ -11,7 +15,7 @@ The 0.2.0 source adds the account quota dashboard, Free-account handling, option
 - [Manual publication 45789625479](https://github.com/kazimshah39/quota-first-router/actions/runs/45789625479): **passed**. All six public ZIPs and checksums were downloaded and byte-compared to the native-tested CI artifacts.
 - Real public custom-store discovery/install/reinstall passed shadow 1m/5m defaults, active/disable and disposable-host restart. Installed Linux library SHA256: `81e3bd5c4740b8d7cc6a7288e1f217e0632597178beae70910c5c360dc820527`. That exact store-downloaded library passed the original CPA routing/failure/tools/cancellation suite and 120s soak: **1,336 requests**, RSS KiB **74,024–78,268**, final **77,072**.
 - Production loaded the exact public library from new `quota-first-router-v0.1.2.so` after protected backup and shadow verification; no shared-service restart or mapped-file overwrite. Live matrix **26/26** across four available models/protocols/streaming/concurrency/tool call. Global last-decision snapshots are not per-request attribution evidence during shared/parallel traffic; a separate **six-request uncontended counter-checked gate** verified independent tier/reset order, actual read-only usage attribution, forced tool call and output follow-up. It passed after natural observation. All nine accounts had **three distinct successful natural quota snapshots over 180.4s**, no worker failure, active **1m polling / 5m max age**. Unrelated config, all nine tier/disabled records, prior libraries and paused-monitor hashes were preserved.
-- [Platform issue #1](https://github.com/kazimshah39/quota-first-router/issues/1) is **closed as completed**. New registry-only [store PR #404](https://github.com/router-for-me/CLIProxyAPI-Plugins-Store/pull/404) is **open, mergeable**, changing only registry.json. **Official default-store listing remains pending maintainer merge**; submission is not acceptance. Closed #402 was updated with the new evidence and stays closed.
+- [Platform issue #1](https://github.com/kazimshah39/quota-first-router/issues/1) is **closed as completed**. Registry-only [store PR #404](https://github.com/router-for-me/CLIProxyAPI-Plugins-Store/pull/404) subsequently merged, adding the plugin to the official default registry. Earlier PR #402 stays closed.
 
 See [platform support](platform-support.md), [release notes](releases/0.1.2.md), [native evidence](evidence/0.1.2/README.md) and [sanitized public/production results](evidence/0.1.2/public-verification.json). The monitor is not included in v0.1.2. Existing v0.1.0/v0.1.1 releases and assets were not modified.
 
