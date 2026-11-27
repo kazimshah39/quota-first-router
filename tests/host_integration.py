@@ -147,6 +147,7 @@ def main():
     already_idle = args.warmup_probe == 'idle-feature'
     fixture_reset = None
     activated = {}
+    free_plans = {'d-backup'} if warmup_e2e else set()
 
     class Fixture(http.server.BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -178,18 +179,19 @@ def main():
             quota_calls.append(account)
             if quota_error:
                 return self.send(503, {'error': 'fixture'})
+            plan = 'free' if account in free_plans else 'plus'
             if warmup_e2e:
                 now = int(time.time())
                 if fixture_reset is None:
                     fixture_reset = now - 1 if already_idle else now + 12
                 reset = activated.get(account, fixture_reset if now < fixture_reset else now + 18000)
                 used = 60 if now < fixture_reset else 1 if account in activated else 0
-                return self.send(200, {'plan_type': 'plus', 'credits': {'has_credits': False, 'unlimited': False, 'balance': '0'},
+                return self.send(200, {'plan_type': plan, 'credits': {'has_credits': False, 'unlimited': False, 'balance': '0'},
                     'rate_limit': {'allowed': True, 'limit_reached': False,
                     'primary_window': {'used_percent': used, 'limit_window_seconds': 18000, 'reset_at': reset},
-                    'secondary_window': {'used_percent': 100 if account != 'b-sooner' else 5,
+                    'secondary_window': {'used_percent': 5 if account in ('b-sooner', 'd-backup') else 100,
                                          'limit_window_seconds': 604800, 'reset_after_seconds': 86400}}})
-            return self.send(200, {'plan_type': 'plus', 'rate_limit': {
+            return self.send(200, {'plan_type': plan, 'rate_limit': {
                 'allowed': True,
                 'primary_window': {'used_percent': 100 if account in exhausted else 20,
                                    'limit_window_seconds': 18000,
@@ -400,7 +402,7 @@ plugins:
                 assert messages == ['b-sooner'], (messages, outcome())
                 assert upstream_requests[0]['model'] == 'gpt-6-luna', 'warmup did not use its default model'
                 sent = wait(lambda: outcome().get('b-sooner.json') in ('sent', 'confirmed'), 'warmup completed')
-                assert sent and all(outcome().get(f'{x}.json') == 'quota_blocked' for x in ['a-later','c-third','d-backup']), outcome()
+                assert sent and all(outcome().get(f'{x}.json') == 'quota_blocked' for x in ['a-later','c-third']), outcome()
                 state = json.loads((warmup_state/'warmup-attempts.json').read_bytes())
                 assert len(state) == 1, state
                 claim = next(iter(state.values()))
@@ -408,13 +410,15 @@ plugins:
                 wait(lambda: outcome().get('b-sooner.json') == 'confirmed', 'two stable post-warmup observations', timeout=190)
                 rows = {r['id']: r for r in view()['accounts']}
                 assert not rows['b-sooner.json'].get('five_hour_idle'), 'confirmed timer shown as idle'
+                free = rows['d-backup.json']
+                assert free.get('free_plan_excluded') and free['availability'] == 'ready' and not free.get('warmup_status'), free
                 assert all(rows[f'{x}.json'].get('five_hour_idle') for x in ['a-later','c-third','d-backup']), rows.keys()
                 assert messages == ['b-sooner'], messages
                 api(BASE + '/config', {'warmup_after_reset':False}, 'PATCH')
                 wait(lambda: not any(outcome().values()), 'warmup disabled and status cleared')
                 assert messages == ['b-sooner'], messages
                 start = 'already idle' if already_idle else 'natural reset'
-                print(f'PASS warmup: {start}, exact credential, exhausted accounts skipped, persisted claim, confirmed timer, disable and read-only monitor', flush=True)
+                print(f'PASS warmup: {start}, exact credential, exhausted and Free accounts skipped, persisted claim, confirmed timer, disable and read-only monitor', flush=True)
                 return
             if args.warmup_probe == 'verify':
                 target = next(r for r in json.loads(api('/v8/management/credentials'))['files'] if r['name'] == 'b-sooner.json')
@@ -467,6 +471,8 @@ plugins:
                 except urllib.error.HTTPError as exc:assert exc.code in (404,405)
             epoch=monitor['history']['epoch']
             if os.environ.get('QFR_UI_FIXTURE') == '1':
+                free_plans.add('d-backup')
+                exhausted.add('c-third')
                 configure()
                 assert message() == 'b-sooner'
                 print('UI_FIXTURE_READY', flush=True)
@@ -489,10 +495,38 @@ plugins:
             verify = json.loads(api('/v8/management/credentials/verify', {'name': 'a-later.json', 'model': MODEL}))
             assert verify['verified'], verify
             assert messages[-1] == 'a-later', 'plugin overrode credential pin'
+
+            free_plans.add('b-sooner')
+            configure()
+            assert message() == 'c-third', 'Free account won reset ranking'
+            last = status()['last_decision']
+            assert {n['auth_id']: n['reason'] for n in last['candidates']}['b-sooner.json'] == 'free_plan_excluded'
+            verify = json.loads(api('/v8/management/credentials/verify', {'name': 'b-sooner.json', 'model': MODEL}))
+            assert verify['verified'] and messages[-1] == 'b-sooner', 'explicit Free pin must still work'
+            exhausted.update(('a-later', 'c-third', 'd-backup'))
+            for only_free in (False, True):
+                if only_free:
+                    free_plans.update(accounts)
+                    exhausted.clear()
+                configure()
+                before_free = len(messages)
+                try:
+                    api('/v1/responses', {'model': MODEL, 'input': 'Synthetic no-Free-fallback check'}, management=False)
+                    raise AssertionError('automatic request unexpectedly used Free')
+                except urllib.error.HTTPError as exc:
+                    assert exc.code in (429, 503), exc.read()
+                assert len(messages) == before_free, 'Free or exhausted account reached upstream'
+            free_plans.clear()
+            configure()
+            assert message() == 'b-sooner', 'fresh paid plan did not restore normal selection'
+            print('PASS Free policy: paid order, explicit pin, no fallback with exhausted or only-Free roster, paid update recovery', flush=True)
+
             api('/v0/management/auth-files/status', {'name': 'b-sooner.json', 'disabled': True}, 'PATCH')
             wait(lambda: message() == 'c-third', 'disabled account host filter')
             api('/v0/management/auth-files/status', {'name': 'b-sooner.json', 'disabled': False}, 'PATCH')
-            wait(lambda: message() == 'b-sooner', 'reenabled account')
+            # The watcher may remove the disabled row from the plugin cache.
+            # Allow one 30-second roster reconciliation plus host settling time.
+            wait(lambda: message() == 'b-sooner', 'reenabled account', timeout=45)
             # Model exclusions must be applied by the host before selection.
             bfile = auths / 'b-sooner.json'
             bstored = json.loads(bfile.read_text())

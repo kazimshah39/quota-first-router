@@ -4,9 +4,11 @@
  const endpoint = '/v0/management/plugins/quota-first-router/monitor';
  const hiddenAbort = Symbol('hidden tab');
  let key = '', data = null, timer = null, controller = null, failures = 0, selectedModel = '', manualKey = false, allActivity = false, generation = 0;
+ let quotaFilter = 'all';
+ const filterNames = {all:'All', available:'Available', exhausted:'Exhausted', free:'Free'};
  const activityLimit = 6;
  const systemTheme = matchMedia('(prefers-color-scheme: dark)');
- const reasons = {ready:'Quota usable',exhausted:'Quota exhausted',stale:'Quota observation is stale',unknown:'Quota unknown',disabled:'Account disabled',identity_changed:'Credential changed; waiting for quota',reset_pending_refresh:'Reset passed; waiting for fresh quota',earliest_five_hour_reset:'Earliest five-hour reset in highest usable tier',usable_unknown_reset:'Usable quota; reset time unknown',tier_quota_unknown_delegate:'Unknown quota in highest usable tier; delegated to CPA',no_usable_quota:'No observed usable quota',no_known_usable_quota:'No known usable quota',provider_not_exclusively_supported:'Not exclusively Codex; delegated to CPA'};
+ const reasons = {ready:'Quota usable',exhausted:'Quota exhausted',stale:'Quota observation is stale',unknown:'Quota unknown',disabled:'Account disabled',free_plan_excluded:'Free plan excluded',identity_changed:'Credential changed; waiting for quota',reset_pending_refresh:'Reset passed; waiting for fresh quota',earliest_five_hour_reset:'Earliest five-hour reset in highest usable tier',usable_unknown_reset:'Usable quota; reset time unknown',tier_quota_unknown_delegate:'Unknown quota in highest usable tier; delegated to CPA',no_usable_quota:'No observed usable quota',no_known_usable_quota:'No known usable quota',provider_not_exclusively_supported:'Not exclusively Codex; delegated to CPA'};
  const reason = code => reasons[code] || code || 'Not offered / eligibility unknown';
  function node(tag, text, cls) {const n = document.createElement(tag);if(text!==undefined)n.textContent=String(text);if(cls)n.className=cls;return n;}
  function empty(el,text){el.replaceChildren(node('p',text,'muted'));}
@@ -38,7 +40,9 @@
   generation++; controller?.abort(); key=''; data=null; failures=0; selectedModel=''; manualKey=false; allActivity=false;
   clearTimeout(timer);
   for (const id of ['private','toolbar','signout','health','model-filter','activity-more']) $(id).hidden = true;
-  for (const id of ['accounts','activity','health','coverage','history-note','activity-count']) $(id).replaceChildren();
+  quotaFilter = 'all';
+  for (const id of ['accounts','activity','health','coverage','history-note','activity-count','filter-status']) $(id).replaceChildren();
+  updateFilterCounts({all:0, available:0, exhausted:0, free:0});
   $('routing-activity').open = false;
   $('model').replaceChildren(node('option','Latest model'));
   $('model').firstChild.value=''; $('search').value=''; $('login').hidden=false;
@@ -86,11 +90,29 @@
   return /^[\w.!#$%&'*+\/=?^_`{|}~-]+@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]+$/i.test(candidate) ? displayEmail(candidate) : id;
  }
  const modelKey = model => (model || '').trim().toLowerCase().replace(/^codex\//, '');
- function exhaustedFor(a, model, now) {
-  if (a.availability === 'exhausted') return true;
-  if (a.availability === 'stale') return false;
-  const key = modelKey(model);
-  return Boolean(key && a.quota?.model_windows?.[key]?.some(w => w.utilization >= 100 && (!w.resets_at || Date.parse(w.resets_at) > now)));
+ function quotaAvailability(a, model, now) {
+  if (a.availability === 'exhausted' || a.availability === 'stale') return a.availability;
+  const windows = a.quota?.model_windows?.[modelKey(model)] || [];
+  const elapsed = w => w.resets_at && Date.parse(w.resets_at) <= now;
+  if (windows.some(w => w.utilization >= 100 && !elapsed(w))) return 'exhausted';
+  if (windows.some(elapsed)) return 'reset_pending_refresh';
+  return a.availability;
+ }
+ function quotaGroup(a, model, now) {
+  if (a.free_plan_excluded === true) return 'free';
+  const status = quotaAvailability(a, model, now);
+  return status === 'ready' ? 'available' : status === 'exhausted' ? 'exhausted' : '';
+ }
+ function updateFilterCounts(counts) {
+  for (const [filter, title] of Object.entries(filterNames)) {
+   const button = $('filter-' + filter);
+   const label = title + ' (' + counts[filter] + ')';
+   if (button.getAttribute('aria-label') !== label) {
+    button.replaceChildren(node('span', title), node('span', counts[filter], 'filter-count'));
+    button.setAttribute('aria-label', label);
+   }
+   button.setAttribute('aria-pressed', String(quotaFilter === filter));
+  }
  }
  function renderAccount(a, note, record, now, expanded) {
   const account = node('article', undefined, 'account');
@@ -98,17 +120,19 @@
   const heading = node('header', undefined, 'account-head');
   const identity = node('div');
   const title = node('h3', accountTitle(a));
-  const exhausted = exhaustedFor(a, record?.model, now);
+  const availability = quotaAvailability(a, record?.model, now);
+  const exhausted = availability === 'exhausted';
   const priority = note?.priority ?? a.priority;
   const meta = [];
   const plan = planNames.get(a.quota?.plan_type);
   if (plan) meta.push(plan);
-  if (!exhausted && a.availability !== 'ready' && a.availability !== 'unknown') meta.push(reason(a.availability));
+  if (a.free_plan_excluded === true) meta.push('Excluded from automatic routing and warmup');
+  if (!exhausted && availability !== 'ready' && availability !== 'unknown') meta.push(reason(availability));
   identity.append(title);
   if (meta.length) identity.append(node('p', meta.join(' · '), 'account-meta'));
   heading.append(identity);
   const markers = node('div', undefined, 'account-markers');
-  if (note && record.decision.auth_id === a.id) {
+  if (note && record.decision.auth_id === a.id && a.free_plan_excluded !== true) {
    account.dataset.selected = 'true';
    markers.append(node('span', 'Selected', 'badge'));
   }
@@ -182,7 +206,19 @@
   health.hidden = !health.textContent;
   $('coverage').hidden = !(data.accounts_truncated || record?.truncated);
   $('coverage').textContent = `${data.accounts_truncated||0} accounts and ${record?.truncated||0} candidate details omitted by safety limits.`;
-  const search=$('search').value.toLowerCase();const accounts=data.accounts.filter(a=>a.id.toLowerCase().includes(search)||a.email?.toLowerCase().includes(search)||accountTitle(a).toLowerCase().includes(search));accounts.sort((a,b)=>{const x=notes.get(a.id),y=notes.get(b.id);if(!x&&!y)return a.id.localeCompare(b.id);if(!x)return 1;if(!y)return -1;return y.priority-x.priority||(x.five_hour_reset?Date.parse(x.five_hour_reset):Infinity)-(y.five_hour_reset?Date.parse(y.five_hour_reset):Infinity)||a.id.localeCompare(b.id);});
+  const search = $('search').value.trim().toLowerCase();
+  const counts = {all:0, available:0, exhausted:0, free:0};
+  const accounts = data.accounts.filter(a => {
+   if (!a.id.toLowerCase().includes(search) && !a.email?.toLowerCase().includes(search) && !accountTitle(a).toLowerCase().includes(search)) return false;
+   const group = quotaGroup(a, record?.model, now);
+   counts.all++;
+   if (group) counts[group]++;
+   return quotaFilter === 'all' || quotaFilter === group;
+  });
+  updateFilterCounts(counts);
+  const filterStatus = accounts.length + (accounts.length === 1 ? ' account shown' : ' accounts shown');
+  if ($('filter-status').textContent !== filterStatus) $('filter-status').textContent = filterStatus;
+  accounts.sort((a,b)=>{const x=notes.get(a.id),y=notes.get(b.id);if(!x&&!y)return a.id.localeCompare(b.id);if(!x)return 1;if(!y)return -1;return y.priority-x.priority||(x.five_hour_reset?Date.parse(x.five_hour_reset):Infinity)-(y.five_hour_reset?Date.parse(y.five_hour_reset):Infinity)||a.id.localeCompare(b.id);});
   const list = $('accounts');
   const expanded = new Set([...list.children].filter(card => card.querySelector('details')?.open).map(card => card.dataset.accountId));
   const focusedSummary = document.activeElement;
@@ -190,7 +226,10 @@
   const focusedID = focusedCard ? focusedCard.dataset.accountId : null;
   list.replaceChildren(...accounts.map(a => renderAccount(a, notes.get(a.id), record, now, expanded.has(a.id))));
   if (focusedID !== null) [...list.children].find(card => card.dataset.accountId === focusedID)?.querySelector('summary').focus({preventScroll:true});
-  if (!accounts.length) empty(list, search ? 'No matching accounts.' : 'No eligible Codex accounts have been discovered.');
+  if (!accounts.length) empty(list, search ? 'No accounts match this search and filter.' : {
+   all:'No Codex accounts discovered.', available:'No accounts with usable quota.',
+   exhausted:'No accounts with confirmed quota exhaustion.', free:'No confirmed Free accounts.',
+  }[quotaFilter]);
   renderActivity();
  }
  function renderActivity() {
@@ -253,6 +292,9 @@
  $('refresh').addEventListener('click',load);
  $('signout').addEventListener('click',()=>{controller?.abort();disconnect('Key forgotten for this page. Connect again to continue.');$('key').focus();});
  $('search').addEventListener('input',render);$('model').addEventListener('change',()=>{selectedModel=$('model').value;render();});
+ for (const filter of Object.keys(filterNames)) $('filter-' + filter).addEventListener('click',()=>{
+  if (quotaFilter !== filter) { quotaFilter = filter; render(); }
+ });
  $('activity-more').addEventListener('click',()=>{allActivity=!allActivity;renderActivity();});
  systemTheme.addEventListener('change',setTheme);
  document.addEventListener('visibilitychange',()=>{clearTimeout(timer);if(document.hidden)controller?.abort(hiddenAbort);else load();});

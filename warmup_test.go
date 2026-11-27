@@ -171,6 +171,10 @@ func TestWarmupQuotaEvidence(t *testing.T) {
 			if got := warmupQuotaReady(s, "gpt-test", at, 5*time.Minute); got != tc.ready {
 				t.Fatalf("warmup ready = %v, want %v", got, tc.ready)
 			}
+			s.PlanType = "Free"
+			if warmupQuotaReady(s, "gpt-test", at, 5*time.Minute) {
+				t.Fatal("confirmed Free should never warm up")
+			}
 			raw, err := json.Marshal(s)
 			if err != nil || strings.Contains(string(raw), "warmup") || strings.Contains(string(raw), s.warmupAccountKey) {
 				t.Fatalf("private warmup evidence leaked: %s (%v)", raw, err)

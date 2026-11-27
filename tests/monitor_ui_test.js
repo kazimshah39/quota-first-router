@@ -16,6 +16,7 @@ class Element {
   findAll(tag) { return this.children.flatMap(c => [...(c.tagName === tag ? [c] : []), ...c.findAll(tag)]); }
   addEventListener(type, fn) { this.handlers[type] = fn; }
   setAttribute(k,v) { this.attributes[k] = v; }
+  getAttribute(k) { return this.attributes[k] ?? null; }
   focus() {}
   click() { this.handlers.click?.({preventDefault(){}}); }
 }
@@ -68,6 +69,7 @@ async function main() {
   assert.match(list.textContent,/2h 11m left/);
   assert.match(list.textContent,/2d 4h left/);
   assert.match(list.textContent,/Waiting for reset check/);
+  assert.equal(element('filter-available').getAttribute('aria-label'),'Available (1)','only the monthly account is available; the elapsed model limit awaits evidence');
   assert.equal(element('model-filter').hidden,true);
   assert.equal(element('signout').hidden,false);
   assert.equal(element('activity').children.length,1,'latest selection is not rendered twice');
@@ -82,9 +84,9 @@ async function main() {
   assert.equal(list.findAll('details')[0].open,true,'auto-refresh must not close expanded account');
   const named = {...populated, accounts:[
     {id:'codex-9router-527e014a-alex+work@example.test.json', availability:'exhausted', quota, priority:0},
-    {id:'codex-abcd1234-different@example.test-plus.json', email:'alex+work@example.test', availability:'ready', quota, priority:10, warmup_status:'confirmed'},
+    {id:'codex-abcd1234-different@example.test-plus.json', email:'alex+work@example.test', availability:'ready', quota:{...quota, model_windows:{}}, priority:10, warmup_status:'confirmed'},
     {id:'codex-12345678-non-email.json', availability:'unknown'},
-    {id:'codex-aabb1234-other@example.test-free.json', email:'user-name@googlemail.com', availability:'ready', priority:20, quota:{plan_type:'free'}},
+    {id:'codex-aabb1234-other@example.test-free.json', email:'user-name@googlemail.com', availability:'exhausted', free_plan_excluded:true, priority:20, quota:{plan_type:'free'}},
   ]};
   element('refresh').click();requests[3].resolve({ok:true,status:200,json:async()=>named});await tick();
   assert.deepEqual(list.findAll('h3').map(title=>title.textContent), ['codex-12345678-non-email.json','alex+work@example.test','user-name@gmail.com','alex+work@example.test']);
@@ -100,6 +102,24 @@ async function main() {
   assert.equal(list.children[1].dataset.exhausted,'true');
   assert.equal(list.children[1].findAll('span').find(el=>el.className==='quota-alert').attributes['aria-label'],'Quota exhausted');
   assert.doesNotMatch(list.children[1].textContent,/Quota exhausted/);
+  const filters = ['all','available','exhausted','free'].map(name=>element('filter-'+name));
+  assert.deepEqual(filters.map(el=>el.getAttribute('aria-label')), ['All (4)','Available (1)','Exhausted (1)','Free (1)']);
+  const savedRequests = requests.length;
+  filters[3].click();
+  assert.equal(filters[3].getAttribute('aria-pressed'),'true');
+  assert.equal(list.children.length,1);
+  assert.match(list.textContent,/Excluded from automatic routing and warmup/);
+  filters[2].click();
+  assert.deepEqual(list.children.map(c=>c.dataset.accountId),[named.accounts[0].id]);
+  filters[1].click();
+  assert.deepEqual(list.children.map(c=>c.dataset.accountId),[named.accounts[1].id]);
+  element('search').value='gMaIL'; element('search').handlers.input();
+  assert.deepEqual(filters.map(el=>el.getAttribute('aria-label')), ['All (1)','Available (0)','Exhausted (0)','Free (1)']);
+  assert.match(list.textContent,/No accounts match this search and filter/);
+  filters[3].click(); assert.match(list.textContent,/user-name@gmail.com/);
+  element('search').value=''; element('search').handlers.input();
+  filters[0].click(); assert.equal(list.children.length,4);
+  assert.equal(requests.length,savedRequests,'account filters must only read cached data');
   list.findAll('details')[1].open=true;
   const history={...named.history,decisions:[...named.history.decisions,...Array.from({length:7},(_,i)=>({model:'another-model',sequence:i+2,at:after(i),decision:{reason:`fixture_reason_${i===6?5:i}`}}))],incidents:[{kind:'quota',code:'quota_http_503',at:after(-2),last_at:after(8),sequence:1,account:named.accounts[0].id}]};
   element('refresh').click();requests[4].resolve({ok:true,status:200,json:async()=>({...named,history})});await tick();

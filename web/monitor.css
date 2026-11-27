@@ -53,6 +53,11 @@ button:disabled { opacity: .55; cursor: wait; }
 #login label { display: block; margin-bottom: 4px; }
 .login-controls input { flex: 1; min-width: 130px; }
 .small, .detail { font-size: 12px; }
+.quota-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 7px; margin: 8px 0; border-bottom: 1px solid var(--line); }
+.quota-filters button { min-height: 32px; padding: 4px 6px; border: 0; border-bottom: 2px solid transparent; border-radius: 5px 5px 0 0; background: transparent; color: var(--muted); font-size: 12px; font-weight: 650; }
+.quota-filters button:hover { color: var(--text); }
+.quota-filters button[aria-pressed="true"] { color: var(--selected-ink); border-bottom-color: currentColor; background: var(--selected); }
+.filter-count { margin-inline-start: 4px; font: 11px var(--numbers); }
 .accounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 298px), 1fr)); gap: 8px; align-items: start; }
 #coverage:not([hidden]) { margin-bottom: 6px; }
 .account { min-width: 0; padding: 9px 11px; }

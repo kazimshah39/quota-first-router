@@ -61,6 +61,8 @@ func choose(req pluginapi.SchedulerPickRequest, states map[string]accountState, 
 			identity := candidateIdentity(c)
 			if identity != "" && identity != s.Identity {
 				n.Reason = "identity_changed"
+			} else if s.confirmedFree() {
+				n.Reason = "free_plan_excluded"
 			} else {
 				n.Reason = s.availability(req.Model, now, maxAge)
 			}
@@ -69,7 +71,7 @@ func choose(req pluginapi.SchedulerPickRequest, states map[string]accountState, 
 			}
 		}
 		d.Candidates = append(d.Candidates, n)
-		if n.Reason == "exhausted" {
+		if n.Reason == "exhausted" || n.Reason == "free_plan_excluded" {
 			d.Excluded = append(d.Excluded, c.ID)
 			continue
 		}

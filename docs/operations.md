@@ -11,6 +11,10 @@ See [monitor guide](monitor.md) for menu/direct paths, memory-only fallback logi
 3. Store a mode-0600 configuration backup outside Git. Record its SHA256 and the plugin artifact SHA256. Do not put OAuth material, API keys, or management secrets in project files or reports.
 4. If CPA uses `requests.proxy-url`, copy that value to this plugin's `proxy_url` without exposing it in logs. Per-account settings take precedence.
 
+## Free accounts
+
+The enabled plugin excludes provider-confirmed Free accounts from automatic, exclusively Codex scheduling and from warmup. This is not a CPA-wide credential block: explicit pins and mixed-provider requests still follow CPA. Plan detection uses a successful provider quota read, never a filename. Until the provider reports a plan, existing routing policy applies. A transient quota error can leave a known plan cached for the same credential; a replacement or a new observation can change it. Non-Free accounts still use the same priority and reset order.
+
 ## Optional Codex warmup
 
 Warmup is **off by default**. It does not change routing order. Enable it only on a local CPA with the loopback management API and an eligible Codex model. It starts the next idle five-hour window with one tiny real inference request, using a small amount of quota. It never redeems a reset. Accounts without a reported five-hour window or affirmative no-credit evidence are skipped, as are disabled, unavailable, cooling-down, or quota-blocked accounts. Do not run another warmup scheduler for the same accounts.

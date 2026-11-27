@@ -29,6 +29,13 @@
   </form>
   <div id="private" hidden>
     <p id="coverage" class="warning small" hidden></p>
+    <div class="quota-filters" role="group" aria-label="Filter accounts">
+      <button type="button" id="filter-all" aria-pressed="true" aria-controls="accounts">All</button>
+      <button type="button" id="filter-available" aria-pressed="false" aria-controls="accounts">Available</button>
+      <button type="button" id="filter-exhausted" aria-pressed="false" aria-controls="accounts">Exhausted</button>
+      <button type="button" id="filter-free" aria-pressed="false" aria-controls="accounts">Free</button>
+    </div>
+    <p id="filter-status" class="sr-only" role="status"></p>
     <div id="accounts" class="accounts"></div>
     <details class="history-panel" id="routing-activity">
       <summary>Routing activity <span id="activity-count" class="muted"></span></summary>

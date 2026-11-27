@@ -314,6 +314,13 @@ func boolValue(m map[string]any, keys ...string) (bool, bool) {
 	r, ok := v.(bool)
 	return r, ok
 }
+
+// confirmedFree uses only the plan from the provider quota response. The plan
+// can stay known even when utilization and reset times have gone stale.
+func (s *quotaSnapshot) confirmedFree() bool {
+	return s != nil && s.Provider == "codex" && strings.EqualFold(strings.TrimSpace(s.PlanType), "free")
+}
+
 func (s quotaSnapshot) availability(model string, now time.Time, maxAge time.Duration) string {
 	if s.ReadAt.IsZero() || now.Before(s.ReadAt) || now.Sub(s.ReadAt) >= maxAge {
 		return "stale"

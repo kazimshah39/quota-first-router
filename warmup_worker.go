@@ -200,6 +200,11 @@ func (s *accountState) observeWarmup(snap quotaSnapshot, now time.Time, cfg conf
 		s.WarmupStatus = ""
 	}
 	s.WarmupCycle = s.WarmupWindow.observe(snap, now, min(cfg.MaxAge, 2*time.Minute))
+	if snap.confirmedFree() {
+		s.WarmupCycle = time.Time{}
+		s.WarmupStatus = ""
+		return
+	}
 	if !s.WarmupCycle.IsZero() && s.WarmupHandled.Before(s.WarmupCycle) && !now.Before(s.WarmupRetryAt) {
 		if !snap.warmupSubscriptionOnly {
 			s.WarmupStatus = "billing_unverified"

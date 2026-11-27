@@ -24,6 +24,33 @@ func TestPolicy(t *testing.T) {
 		excluded     int
 	}{
 		{"tier before reset", nil, "a", "earliest_five_hour_reset", 0},
+		{"free skipped before tier and reset ranking", func(r *pluginapi.SchedulerPickRequest, s map[string]accountState) {
+			r.Candidates[0].Priority = 100
+			s["a"].Snapshot.PlanType = " Free "
+			s["b"].Snapshot.PlanType = "plus"
+		}, "b", "earliest_five_hour_reset", 1},
+		{"last confirmed plan retained with stale quota", func(_ *pluginapi.SchedulerPickRequest, s map[string]accountState) {
+			s["a"].Snapshot.PlanType = "free"
+			s["a"].Snapshot.ReadAt = testNow.Add(-time.Hour)
+		}, "b", "earliest_five_hour_reset", 1},
+		{"old Free snapshot not applied to replaced account", func(r *pluginapi.SchedulerPickRequest, s map[string]accountState) {
+			s["a"].Snapshot.PlanType = "free"
+			r.Candidates[0].Metadata = map[string]any{"account_id": "different"}
+		}, "", "tier_quota_unknown_delegate", 0},
+		{"filename and candidate metadata cannot assert plan", func(r *pluginapi.SchedulerPickRequest, s map[string]accountState) {
+			s["codex-user-free.json"] = s["a"]
+			r.Candidates[0].ID = "codex-user-free.json"
+			r.Candidates[0].Metadata = map[string]any{"plan_type": "free"}
+		}, "codex-user-free.json", "earliest_five_hour_reset", 0},
+		{"delegation retains Free exclusions", func(_ *pluginapi.SchedulerPickRequest, s map[string]accountState) {
+			s["a"].Snapshot.PlanType = "free"
+			delete(s, "b")
+		}, "", "tier_quota_unknown_delegate", 1},
+		{"only Free or exhausted", func(_ *pluginapi.SchedulerPickRequest, s map[string]accountState) {
+			s["d"].Snapshot.PlanType = "free"
+			s["a"].Snapshot.FiveHour.Utilization = ptrFloat(100)
+			s["b"].Snapshot.FiveHour.Utilization = ptrFloat(100)
+		}, "", "no_usable_quota", 3},
 		{"within tier", func(_ *pluginapi.SchedulerPickRequest, s map[string]accountState) { s["b"] = readyState(5, 10) }, "b", "earliest_five_hour_reset", 0},
 		{"exhausted top tier", func(_ *pluginapi.SchedulerPickRequest, s map[string]accountState) {
 			s["a"] = readyState(20, 100)

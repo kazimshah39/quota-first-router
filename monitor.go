@@ -30,6 +30,7 @@ type monitorAccount struct {
 	Quota                 *quotaSnapshot `json:"quota,omitempty"`
 	QuotaDetailsTruncated int            `json:"quota_details_truncated,omitempty"`
 	Availability          string         `json:"availability"`
+	FreePlanExcluded      bool           `json:"free_plan_excluded,omitempty"`
 	WarmupStatus          string         `json:"warmup_status,omitempty"`
 	FiveHourIdle          bool           `json:"five_hour_idle,omitempty"`
 }
@@ -76,6 +77,7 @@ func (e *engine) monitor() monitorSnapshot {
 		a.ID, a.Index = safeLabel(a.ID), safeLabel(a.Index)
 		if a.Quota != nil {
 			a.Availability = a.Quota.availability("", now, e.cfg.MaxAge)
+			a.FreePlanExcluded = a.Quota.confirmedFree()
 			if !now.Before(a.Quota.ReadAt) && now.Sub(a.Quota.ReadAt) < e.cfg.MaxAge {
 				s.FreshAccounts++
 			}

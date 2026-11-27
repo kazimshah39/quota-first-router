@@ -117,7 +117,7 @@ func warmupClose(delta, tolerance time.Duration) bool {
 }
 
 func warmupQuotaReady(s quotaSnapshot, model string, now time.Time, maxAge time.Duration) bool {
-	return s.Provider == "codex" && s.warmupAccountKey != "" && s.warmupFiveHourReported &&
+	return s.Provider == "codex" && !s.confirmedFree() && s.warmupAccountKey != "" && s.warmupFiveHourReported &&
 		s.warmupAbsoluteReset && s.warmupSubscriptionOnly && s.warmupProviderAllows &&
 		s.FiveHour != nil && s.FiveHour.Utilization != nil && *s.FiveHour.Utilization == 0 &&
 		s.Weekly.Utilization != nil && s.Weekly.ResetsAt != nil && model != "" &&
