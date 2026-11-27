@@ -37,8 +37,15 @@ func TestRuntimeProtocol(t *testing.T) {
 	if !strings.Contains(string(env.Result), `"scheduler_across_priorities":true`) {
 		t.Fatal(string(raw))
 	}
-	if strings.Contains(string(env.Result), `"name":"mode"`) {
-		t.Fatal("legacy mode advertised in plugin configuration")
+	var public struct {
+		Metadata pluginapi.Metadata `json:"metadata"`
+	}
+	if err := json.Unmarshal(env.Result, &public); err != nil {
+		t.Fatal(err)
+	}
+	fields := public.Metadata.ConfigFields
+	if len(fields) != 1 || fields[0].Name != "warmup_after_reset" || fields[0].Type != pluginapi.ConfigFieldTypeBoolean || fields[0].Default != false {
+		t.Fatalf("unexpected drawer fields: %+v", fields)
 	}
 	for _, method := range []string{pluginabi.MethodPluginRegister, pluginabi.MethodPluginReconfigure} {
 		if !strings.Contains(string(p.handle(method, []byte(`{}`))), `"ok":true`) {
