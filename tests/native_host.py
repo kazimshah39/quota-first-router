@@ -177,6 +177,7 @@ def main():
             monitor_path=BASE+'/monitor';resource='/v0/resource/plugins/quota-first-router/monitor'
             response=opener.open(f'http://127.0.0.1:{port}'+resource)
             shell=response.read().decode();assert 'Routing monitor' in shell and 'synthetic-' not in shell and 'a.json' not in shell
+            assert all(label in shell for label in ('How it works', 'filter-free', 'filter-exhausted', 'What warmup does')), 'Missing embedded monitor help or filters'
             assert response.headers.get('Cache-Control')=='no-store' and response.headers.get('X-Content-Type-Options')=='nosniff' and "frame-ancestors 'self'" in response.headers.get('Content-Security-Policy','')
             registered=next(p for p in listing['plugins'] if p['id']=='quota-first-router')
             assert any(menu['path']==resource for menu in registered['menus'])

@@ -1,4 +1,4 @@
-# Routing and health monitor (unpublished 0.2.0 candidate)
+# Routing and health monitor (0.2.0)
 
 This read-only page shows cached quota and **scheduler decisions**, not actual served accounts, request success, token/cost analytics or a permanent queue. CPA can retry after a scheduler choice; concurrent traffic replaces the global latest choice. Use host Request Events/Logs for actual outcomes.
 
@@ -53,4 +53,4 @@ There is no separate routing mode. Enable Quota First Router in CPA to use its s
 
 Local candidate checks include Go race/unit/vet/format, offline packaging, Node controller race tests, actual CPA resource/menu/auth/routing integration, standalone and embedded Chrome checks and a five-minute concurrent monitor/routing history-rollover soak. See `docs/evidence/0.2.0/README.md` for measured results and honest pending gates.
 
-Six candidate shared libraries build and pass machine/export/dependency/checksum checks. Linux amd64 exact-ZIP native acceptance additionally verifies protected monitor/public shell and no polling/pick side effects. **The other five changed-feature native runs remain pending separately approved remote execution.** v0.1.2's native passes do not validate this new feature. No feature release/tag/upload, store-review surface update or production rollout is implied. Candidate version 0.2.0 is tentative until final remote-version checks.
+Release packages must pass six matching native runs using the exact ZIPs. See [release status](release-status.md) for the result. The earlier v0.1.2 runs do not validate this version. Browser and warmup tests are tracked separately from the six-platform routing and monitor checks.

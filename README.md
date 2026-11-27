@@ -46,7 +46,7 @@ Set `GO=go` to use your installed Go. `make cpa` downloads CPA 8.1.0 and verifie
 
 **CPA 8.1.0: Linux, macOS and Windows, each amd64/arm64.** Version 0.1.2 provides all six native-tested packages. Linux requires glibc 2.34+; macOS binary deployment minimum is 13.0; Windows was tested on Server 2025 amd64 and Windows 11 ARM64. See [platform support](docs/platform-support.md) for precise tested/runtime limits. Older v0.1.0/v0.1.1 releases remain Linux-amd64 only.
 
-v0.1.2 is published with all six native-tested packages. Platform issue **#1 is resolved**; the replacement registry-only store PR **#404 is awaiting maintainer review**. Earlier #402 stays closed. Official listing is not claimed before merge; details are in [release status](docs/release-status.md). To install from the author’s registry, add this custom registry source in CPA's configuration, keeping any existing sources:
+The plugin is listed in the official CPA registry. Refresh the plugin store and search for **Quota First Router**. If you use a separate registry, the author’s source is also available; keep any existing sources when adding it:
 
 ```yaml
 plugins:
@@ -75,7 +75,7 @@ plugins:
 
 For a first installation, copy a regular platform library (`.so`, `.dylib`, `.dll`) into the plugin directory. Never overwrite a potentially mapped library during an upgrade; see [version upgrades](docs/operations.md#native-version-upgrades). CPA 8.1.0 supports loading/configuring it through its existing plugin management flow; verify registration, never assume copying alone succeeded. `priority` above orders scheduler **plugins**, not account tiers. CPA 8.1.0 invokes only its highest-priority active scheduler; another scheduler can supersede this one.
 
-- **Enabled** (unpublished 0.2.0): chooses accounts and excludes fresh exhausted accounts.
+- **Enabled** (0.2.0): chooses accounts and skips known exhausted and provider-confirmed Free accounts on Codex-only requests.
 - **Disabled**: CPA routes normally, and the plugin stops polling quota.
 
 Before upgrading an older shadow installation, disable it and remove its legacy `mode` setting. Enable it only when you want it to route requests. Published v0.1.x builds still have the older mode setting.
@@ -93,9 +93,9 @@ The worker reconciles the roster and reset deadlines every 30 seconds and polls 
 
 **Proxy limitation:** CPA's lifecycle configuration does not expose its global upstream proxy to this native plugin. Configure `proxy_url` explicitly when CPA uses `requests.proxy-url`. Per-account `proxy_url` is respected; otherwise Go's environment proxy policy applies. Custom account `base_url` is explicitly unsupported for quota polling and reported, never silently bypassed. Redirects are refused.
 
-## Monitor candidate (unpublished 0.2.0)
+## Account quota monitor (0.2.0)
 
-The read-only **Quota First Router** plugin page shows health, cached quota, bounded scheduler choices and incidents. Public HTML is generic; all private diagnostics require management login. Choices are not actual served-account or request-success evidence. See [monitor guide](docs/monitor.md) for paths, auth, limits and lifecycle; [local evidence](docs/evidence/0.2.0/README.md) lists passed checks and pending native/release gates. The public v0.1.2 release is unchanged.
+The read-only **Quota First Router** page shows quota left, reset timers, account filters, picks and polling issues. Open **How it works** for short examples. Public HTML is generic; account diagnostics require management login. A pick is not proof of which account served a request. See the [monitor guide](docs/monitor.md) and [0.2.0 release notes](docs/releases/0.2.0.md). Optional warmup is off by default and requires [extra setup on Linux or macOS](docs/operations.md#optional-codex-warmup).
 
 ## Authenticated diagnostics
 

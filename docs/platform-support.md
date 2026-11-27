@@ -1,6 +1,6 @@
 # Platform support — published 0.1.2
 
-**Unpublished 0.2.0 monitor candidate:** six cross-build/format/export/dependency/package checks and Linux-amd64 exact-ZIP native monitor acceptance pass locally; the other five changed-feature native checks await separately approved hosted CI. Do not infer their feature acceptance from the historical 0.1.2 results below. See [monitor evidence](evidence/0.2.0/README.md).
+**For 0.2.0:** see [release status](release-status.md) for exact-source native acceptance. The same routing/monitor targets apply; optional warmup is Linux/macOS only and is not part of the six-platform routing acceptance.
 
 All six required targets passed genuine matching-architecture CPA 8.1.0 native acceptance in [CI run 45785056147](https://github.com/kazimshah39/quota-first-router/actions/runs/45785056147), source `ebc5d89`. Release publication/public-download/production results are tracked separately in [release status](release-status.md). Existing v0.1.0/v0.1.1 assets remain immutable Linux-amd64-only releases.
 
@@ -63,7 +63,7 @@ CPA may atomically rewrite auth files during native tests. A changed file delibe
 
 Regular CI is read-only/nonpublishing: unit/race/vet, original Linux resource soak, pinned six cross-builds, byte comparison against a clean Git export, six native lanes and hash-bound complete artifact aggregation. Clean builds require no ignored references/private monitoring work. The Linux candidate also passed original failure/retry, competing scheduler, auth/pinning/filtering, tool payload and cancellation checks, plus a 120s/1,520-request local soak with RSS 75,692–79,332 KiB (final 78,532).
 
-Publication is separate/manual: explicit approved input, environment gate, existing version tag, successful exact-source CI SHA and all six native records. Existing releases are never replaced. Current user approval covers publication, public installation verification, new registry-only store PR and protected production rollout after tests. Maintainer merge is external and not claimed merely by submitting.
+Publication is separate/manual: explicit approved input, environment gate, existing version tag, successful exact-source CI SHA and all six native records. Existing releases are never replaced. Public release, store changes, and production rollout are separate operations.
 
 ## References
 

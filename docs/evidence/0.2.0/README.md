@@ -1,4 +1,4 @@
-# Local monitor candidate evidence — 0.2.0 (unpublished)
+# Historical local monitor evidence — early 0.2.0 candidate
 
 Source: local `monitor-completion` branch from stable main `7ed965e`; tested runtime/assets and package inputs are in `b5093bd`. Follow-up tests and docs do not change those inputs. All 11 original monitor files match the recovery manifest and the contents of the backup tarball. Four production libraries match their recorded hashes; unrelated configuration and baseline account flags/priorities were checked read-only. No production or remote writes were made for this feature.
 
@@ -22,7 +22,9 @@ Linux Chrome through chrome-devtools-mux used synthetic CPA 8.1.0 and isolated O
 
 To repeat: build the plugin, run `QFR_UI_FIXTURE=1 python3 tests/host_integration.py --cpa /path/to/cpa --library dist/quota-first-router.so`, then use the loopback URL `http://127.0.0.1:18319/v0/resource/plugins/quota-first-router/monitor` in Chrome. To repeat embedding, point an isolated OMC instance at that disposable CPA and navigate to the plugin menu. Use only the fixture login, not production authentication or data. Response interception proves UI rendering and controller behavior; unit/real CPA tests separately prove backend behavior. This is not six-OS browser coverage.
 
-## Pending gates
+## Gates at the time of this test
+
+This page records the early monitor-only source, not the final release. See [release status](../../release-status.md) for newer evidence and publication state.
 
 - Darwin amd64/arm64, Linux arm64 and Windows amd64/arm64 matching native monitor acceptance requires separately approved source push and hosted CI. Run all six on the exact feature source before publication; no cross-build or v0.1.2 pass substitutes for this. Windows arm64 race remains unsupported.
 - Store PR #404 is open and unmerged with no reviewer feedback; the official default registry does not contain the plugin. Official-source installation remains blocked until maintainer merge. No duplicate PR or feature metadata swap.

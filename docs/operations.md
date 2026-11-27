@@ -1,8 +1,8 @@
 # Operation and rollback
 
-## Unpublished monitor candidate
+## Monitor and routing in 0.2.0
 
-See [monitor guide](monitor.md) for menu/direct paths, memory-only fallback login, public-shell/private-API split, health/reason meanings, history reset/eviction and disabled-route recovery. This read-only page does not refresh provider quota, change config or prove actual request outcomes. The unpublished preview has no separate routing mode. Use CPA’s **Enabled** switch. Turning it on puts the scheduler into use; pending or stale quota delegates to CPA as usual. Turning it off stops the scheduler and quota worker and may remove the monitor page. A legacy shadow preview is migrated with `enabled: false` and its `mode` setting removed, so upgrading does not activate routing. Keep the prior native library and a protected backup.
+See [monitor guide](monitor.md) for menu/direct paths, memory-only fallback login, public-shell/private-API split, health/reason meanings, history reset/eviction and disabled-route recovery. This read-only page does not refresh provider quota, change config or prove actual request outcomes. Version 0.2.0 has no separate routing mode. Use CPA’s **Enabled** switch. Turning it on puts the scheduler into use; pending or stale quota delegates to CPA as usual. Turning it off stops the scheduler and quota worker and may remove the monitor page. A legacy shadow preview is migrated with `enabled: false` and its `mode` setting removed, so upgrading does not activate routing. Keep the prior native library and a protected backup.
 
 ## Before a rollout
 
