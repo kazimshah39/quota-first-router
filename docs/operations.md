@@ -11,6 +11,16 @@ See [monitor guide](monitor.md) for menu/direct paths, memory-only fallback logi
 3. Store a mode-0600 configuration backup outside Git. Record its SHA256 and the plugin artifact SHA256. Do not put OAuth material, API keys, or management secrets in project files or reports.
 4. If CPA uses `requests.proxy-url`, copy that value to this plugin's `proxy_url` without exposing it in logs. Per-account settings take precedence.
 
+## Optional Codex warmup
+
+Warmup is **off by default**. It does not change routing order. Enable it only on a local CPA with the loopback management API and a verified lightweight Codex model. It starts the next idle five-hour window with one tiny real inference request, using a small amount of quota. It never redeems a reset. Accounts without a reported five-hour window or affirmative no-credit evidence are skipped, as are disabled, unavailable, cooling-down, or quota-blocked accounts. Do not run another warmup scheduler for the same accounts.
+
+On Linux/macOS, provision a dedicated local state directory owned by the CPA user, mode `0700`. Create `warmup-attempts.lock` (empty) and `warmup-attempts.json` (initially `{}`) with mode `0600` **only on first setup**. Add `cpa-management.key`, mode `0600`, containing the existing CPA management bearer key, not the hash in CPA's YAML. Do not put the key in the plugin config, a command line, Git, or API output. Use a private parent directory on a local filesystem; do not share state across unrelated CPA instances. Preserve all three files across updates. If the state is missing, invalid, or locked by another worker, warmup pauses without affecting routing. Avoid restoring an older ledger over a newer one. Warmup is not supported on Windows at present; default-off routing is unaffected.
+
+In CPA’s plugin config, set `warmup_cpa_url` to the numeric loopback HTTP origin (for example `http://127.0.0.1:8317`), `warmup_state_dir` to the absolute directory, and `warmup_model` to the specific verified lightweight model. Set `warmup_after_reset: true` to opt in. CPA’s **Enabled** switch still controls the whole plugin. Turn just warmup off with `warmup_after_reset: false`. Calls are bounded and never follow redirects or use an HTTP proxy. If a call times out after dispatch, the worker does not retry it for that window.
+
+The first pass observes existing windows. An already-idle account with no previously observed active boundary is not pinged at startup; its first eligible reset follows normal Codex use. The worker waits for two fresh idle readings after the reset and uses the next normal quota reads to verify a stable timer. An intervening real request can start the window first; the router skips warmup if it observes that. After replacing the key file, reconfigure the plugin to reload it. See [transport verification](warmup-feasibility.md).
+
 ## Legacy v0.1.x shadow-first canary
 
 The following shadow-specific steps apply only to published v0.1.x. For 0.2.0, verify the build on a disposable CPA first, then explicitly enable the plugin when ready. `tests/live_canary.py` targets the enable/disable candidate.

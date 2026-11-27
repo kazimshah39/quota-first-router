@@ -21,7 +21,7 @@ Higher numeric priority means a higher tier. The plugin never changes priorities
 - Within the highest usable tier: nearest future five-hour reset first; equal times use credential ID; known reset times precede unknown reset times with otherwise known available quota. Some Codex plans expose only a monthly window: when the quota response explicitly says `allowed: true`, those accounts remain usable but sort after accounts with a known five-hour reset in the same tier.
 - If any candidate's quota is unknown/stale in the highest usable tier, delegate to CPA rather than accidentally skip that tier. Exclusions for other fresh exhausted accounts still apply. Ranking is not guaranteed during this fallback.
 - After a reset timestamp passes, request a new observation; do not infer replenishment from a clock alone. Until refreshed, that snapshot is unknown (fail open to CPA).
-- No artificial warmup or model request is sent to start a quota window. Only quota GETs are used by the polling worker.
+- Quota polling only reads provider usage. Optional [five-hour warmup](docs/operations.md#optional-codex-warmup) is off by default; when enabled, a separate worker may send one small credential-pinned request per confirmed idle cycle.
 
 ## Build and checks
 

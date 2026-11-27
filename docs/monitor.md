@@ -35,6 +35,8 @@ HTML/CSS/JS resources are public but generic and contain no diagnostics. Private
 
 Polling incidents show sanitized codes such as `quota_http_503`; `credential_list_failed` means the host roster read failed, and `worker_failed` means the monitoring worker reported a failure. `Recovered` means a later quota/roster read succeeded. These codes do not report inference failures.
 
+When optional warmup is enabled, the last outcome appears under an account’s **Details**. **Window confirmed** means two fresh quota reads showed a stable new reset; HTTP success alone does not confirm the timer. **Warmup paused** does not mean routing or quota polling stopped.
+
 ## Refresh and history limits
 
 The UI fetches cached diagnostics every five seconds while visible. **Refresh** reads the cache immediately. The embedded page follows the host’s theme; the standalone page follows the browser’s preference. Hidden tabs stop automatic reads and cancel an in-flight read; returning to the page refreshes it. The router's background quota checks continue even if the page is hidden or closed. Only one read is in flight; requests have a 10s timeout and bounded backoff up to 60s. Failures retain clearly labeled stale data except authentication rejection, which clears it. UI reads do not trigger provider quota GETs, inference, settings changes or scheduler picks. Quota polling remains 1m, max age 5m, timeout 10s, reconciliation 30s by default.

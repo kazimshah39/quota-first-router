@@ -90,13 +90,42 @@ func (p *pluginRuntime) configure(cfg config) {
 	p.stopLocked()
 	p.fetcher = newHTTPFetcher()
 	e := newEngine(p.host, p.fetcher, cfg)
+	if cfg.WarmupEnabled {
+		var err error
+		e.warmup, err = openWarmupWorker(cfg)
+		if err != nil {
+			e.warmupError = err.Error() // fixed, non-secret error codes only
+		}
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel = cancel
 	p.done = make(chan struct{})
 	done := p.done
 	p.active.Store(e)
+	var warmupDone <-chan struct{}
+	if e.warmup != nil {
+		finished := make(chan struct{})
+		warmupDone = finished
+		go func() {
+			defer close(finished)
+			defer func() {
+				if recover() != nil {
+					e.mu.Lock()
+					e.warmupError = "worker_failed"
+					e.mu.Unlock()
+				}
+			}()
+			e.warmup.run(ctx, e)
+		}()
+	}
 	go func() {
 		defer close(done)
+		defer func() {
+			cancel()
+			if warmupDone != nil {
+				<-warmupDone
+			}
+		}()
 		defer func() {
 			if recover() != nil {
 				e.markFailed()
@@ -138,6 +167,10 @@ func registration() any {
 				{Name: "max_age", Type: pluginapi.ConfigFieldTypeString, Default: "5m", Description: "Maximum quota cache age. Default 5m."},
 				{Name: "proxy_url", Type: pluginapi.ConfigFieldTypeString, Description: "Set to CPA requests.proxy-url if configured; per-account proxy overrides this."},
 				{Name: "request_timeout", Type: pluginapi.ConfigFieldTypeString, Default: "10s", Description: "Background quota request timeout, 1s to 30s. Default 10s."},
+				{Name: "warmup_after_reset", Type: pluginapi.ConfigFieldTypeBoolean, Default: false, Description: "Warm up eligible Codex OAuth accounts after a five-hour reset. Uses a small amount of quota. Off by default."},
+				{Name: "warmup_model", Type: pluginapi.ConfigFieldTypeString, Description: "Lightweight Codex model for warmup; must be available on the account."},
+				{Name: "warmup_cpa_url", Type: pluginapi.ConfigFieldTypeString, Description: "Numeric loopback HTTP origin for the local CPA management API."},
+				{Name: "warmup_state_dir", Type: pluginapi.ConfigFieldTypeString, Description: "Absolute path to the private warmup state directory provisioned by the operator."},
 			}},
 		map[string]bool{"scheduler": true, "scheduler_across_priorities": true, "management_api": true},
 	}

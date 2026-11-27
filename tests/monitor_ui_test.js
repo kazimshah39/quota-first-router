@@ -49,8 +49,8 @@ async function main() {
   const now=Date.parse(snapshot.server_time), after=minutes=>new Date(now+minutes*60000).toISOString();
   const quota = {plan_type:'plus',five_hour:{utilization:20,resets_at:after(19)},seven_day:{utilization:62,resets_at:after(2*1440+4*60)},model_windows:{'gpt-example':[{utilization:100,resets_at:after(-1)}]}};
   const populated = {...snapshot, total_accounts:4, fresh_accounts:3, history:{...snapshot.history, decisions:[{model:'gpt-example', at:snapshot.server_time, sequence:1, decision:{auth_id:'primary', candidates:[{auth_id:'primary', priority:20, reason:'ready'}]}}]}, accounts:[
-    {id:'primary', availability:'ready', quota},
-    {id:'cached', availability:'stale', quota:{five_hour:{utilization:0,resets_at:after(131)}}},
+    {id:'primary', availability:'ready', quota, warmup_status:'confirmed'},
+    {id:'cached', availability:'stale', quota:{five_hour:{utilization:0,resets_at:after(131)}}, warmup_status:'<unexpected status>'},
     {id:'monthly', availability:'ready', quota:{five_hour_absent:true,seven_day:{utilization:76}}},
     {id:'unread', availability:'unknown'},
   ]};
@@ -74,6 +74,9 @@ async function main() {
   const details=list.findAll('details');
   assert.equal(details.every(detail=>detail.open===false),true);
   assert.match(details[0].textContent,/gpt-example/);
+  assert.match(details[0].textContent,/Warmup: Window confirmed/);
+  assert.doesNotMatch(list.children[0].children[0].textContent,/Warmup/);
+  assert.doesNotMatch(list.textContent,/unexpected status/);
   details[0].open=true;
   element('refresh').click();requests[2].resolve({ok:true,status:200,json:async()=>populated});await tick();
   assert.equal(list.findAll('details')[0].open,true,'auto-refresh must not close expanded account');

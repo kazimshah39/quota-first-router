@@ -30,6 +30,7 @@ type monitorAccount struct {
 	Quota                 *quotaSnapshot `json:"quota,omitempty"`
 	QuotaDetailsTruncated int            `json:"quota_details_truncated,omitempty"`
 	Availability          string         `json:"availability"`
+	WarmupStatus          string         `json:"warmup_status,omitempty"`
 }
 type monitorSnapshot struct {
 	Version           string              `json:"version"`
@@ -40,6 +41,7 @@ type monitorSnapshot struct {
 	PollInterval      string              `json:"poll_interval"`
 	ListError         string              `json:"list_error,omitempty"`
 	WorkerFailed      bool                `json:"worker_failed"`
+	WarmupError       string              `json:"warmup_error,omitempty"`
 	Accounts          []monitorAccount    `json:"accounts"`
 	TotalAccounts     int                 `json:"total_accounts"`
 	AccountsTruncated int                 `json:"accounts_truncated"`
@@ -54,6 +56,7 @@ func (e *engine) monitor() monitorSnapshot {
 	s := monitorSnapshot{Version: pluginVersion, ServerTime: now, Mode: "active", MaxAgeSeconds: e.cfg.MaxAge.Seconds(), PollInterval: e.cfg.PollInterval.String(), Accounts: []monitorAccount{}, WorkerFailed: e.failed.Load(), Picks: e.picks.Load(), Routed: e.routed.Load()}
 	e.mu.RLock()
 	s.ListError = e.listErr
+	s.WarmupError = e.warmupError
 	s.TotalAccounts = len(e.states)
 	ids := make([]string, 0, len(e.states))
 	for id := range e.states {
@@ -62,7 +65,7 @@ func (e *engine) monitor() monitorSnapshot {
 	sort.Strings(ids)
 	for _, id := range ids[:min(len(ids), monitorAccountLimit)] {
 		a := e.states[id]
-		s.Accounts = append(s.Accounts, monitorAccount{ID: id, Email: a.Email, Priority: a.Priority, Index: a.Index, Error: a.LastError, Failures: a.Failures, NextRefresh: a.NextRefresh, Quota: a.Snapshot, Availability: "unknown"})
+		s.Accounts = append(s.Accounts, monitorAccount{ID: id, Email: a.Email, Priority: a.Priority, Index: a.Index, Error: a.LastError, Failures: a.Failures, NextRefresh: a.NextRefresh, Quota: a.Snapshot, Availability: "unknown", WarmupStatus: a.WarmupStatus})
 	}
 	e.mu.RUnlock()
 	// Quota snapshots are immutable after publication by refreshQuota. Copy and

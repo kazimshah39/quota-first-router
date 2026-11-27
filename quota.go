@@ -55,6 +55,14 @@ type quotaSnapshot struct {
 	PlanType string                   `json:"plan_type,omitempty"`
 	ReadAt   time.Time                `json:"read_at"`
 	Identity string                   `json:"-"`
+
+	// Warmup needs explicit provider evidence. In particular, the legacy
+	// routing parser can infer the first window's duration from its position.
+	warmupFiveHourReported bool
+	warmupAbsoluteReset    bool
+	warmupSubscriptionOnly bool
+	warmupProviderAllows   bool
+	warmupAccountKey       string
 }
 
 func parseCodexQuota(raw []byte, now time.Time) (quotaSnapshot, error) {
@@ -67,6 +75,23 @@ func parseCodexQuota(raw []byte, now time.Time) (quotaSnapshot, error) {
 		return quotaSnapshot{}, errors.New("invalid_codex_rate_limit")
 	}
 	s := quotaSnapshot{Provider: "codex", ReadAt: now, PlanType: stringValue(doc, "plan_type", "planType"), Models: map[string][]quotaWindow{}}
+	// Only accept an explicit, consistent report of no available paid credits.
+	// Missing or contradictory data is not evidence for a consuming request.
+	if credits, ok := mapValue(doc, "credits"); ok {
+		hasCredits, h := boolValue(credits, "has_credits", "hasCredits")
+		unlimited, u := boolValue(credits, "unlimited")
+		balance, b := numberValue(credits, "balance")
+		if !b {
+			if raw, ok := fieldValue(credits, "balance"); ok {
+				if str, ok := raw.(string); ok {
+					var err error
+					balance, err = strconv.ParseFloat(strings.TrimSpace(str), 64)
+					b = err == nil
+				}
+			}
+		}
+		s.warmupSubscriptionOnly = h && !hasCredits && u && !unlimited && b && balance == 0
+	}
 	var windows []quotaWindow
 	for i, names := range [][2]string{{"primary_window", "primaryWindow"}, {"secondary_window", "secondaryWindow"}} {
 		wraw, exists := mapValue(rate, names[0], names[1])
@@ -78,6 +103,9 @@ func parseCodexQuota(raw []byte, now time.Time) (quotaSnapshot, error) {
 			return quotaSnapshot{}, errors.New("invalid_codex_window")
 		}
 		if kind == "five_hour" {
+			seconds, reported := numberValue(wraw, "limit_window_seconds", "limitWindowSeconds")
+			s.warmupFiveHourReported = s.FiveHour == nil && reported && seconds == 18000
+			_, s.warmupAbsoluteReset = numberValue(wraw, "reset_at", "resetAt")
 			s.FiveHour = &w
 		} else {
 			if s.Weekly.Utilization == nil {
@@ -101,6 +129,7 @@ func parseCodexQuota(raw []byte, now time.Time) (quotaSnapshot, error) {
 	// A global denial must not be lost if the response has no exhausted window.
 	allowed, ha := boolValue(rate, "allowed")
 	reached, hr := boolValue(rate, "limit_reached", "limitReached")
+	s.warmupProviderAllows = ha && allowed && hr && !reached
 	s.FiveHourAbsent = s.FiveHour == nil && ha && allowed && s.Weekly.Utilization != nil
 	if (ha && !allowed) || (hr && reached) {
 		used := 100.0
@@ -391,6 +420,11 @@ func (f *httpQuotaFetcher) Fetch(ctx context.Context, c credential) (quotaSnapsh
 		return quotaSnapshot{}, err
 	}
 	s.Identity = c.identity()
+	// Use the provider account ID, not the credential file, email or token.
+	// Copies of the same OAuth credential must share the same warmup claim.
+	if id := strings.TrimSpace(c.AccountID); id != "" {
+		s.warmupAccountKey = warmupAccountKey(id)
+	}
 	return s, nil
 }
 func retryAfter(raw string, now time.Time) time.Duration {

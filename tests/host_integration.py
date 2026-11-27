@@ -1,4 +1,4 @@
-"""Synthetic integration against the installed CPA 8.1.0 binary.
+"""Synthetic integration against a supplied CPA binary.
 Runs in a disposable network-isolated container; no personal credentials.
 """
 import argparse
@@ -25,14 +25,97 @@ MODEL = 'gpt-6-luna'
 IMAGE = 'golang:1.26-bookworm@sha256:a688600ca24f8a4d3ca77f95b0dd40704a9fc787c826660eb7ba0b641b8b175d'
 
 
+def run_warmup_probe(mode, lifecycle, root, api, status, wait, messages, started, release):
+    import base64
+
+    path = '/v0/management/plugins/test-warmup-probe/enabled'
+    target, other = 'b-sooner.json', 'a-later.json'
+    assert {target, other} <= status()['accounts'].keys()
+    is_stream = mode == 'execute_stream'
+
+    def stage(auth, prompt, model=MODEL):
+        result = root / 'probe-result.json'
+        result.unlink(missing_ok=True)
+        body = json.dumps({'model': model, 'input': prompt, 'store': False, 'stream': is_stream,
+                           'max_output_tokens': 16})
+        (root / 'probe-request.json').write_text(json.dumps({
+            'entry_protocol': 'openai-response', 'exit_protocol': 'openai-response',
+            'auth_id': auth, 'forced_provider': 'codex', 'model': model, 'stream': is_stream,
+            'timeout_ms': 1000,  # Negative control: not a supported model-RPC timeout field.
+            'body': base64.b64encode(body.encode()).decode()}))
+        api(path, {'enabled': True}, 'PATCH')
+        return result
+
+    result = stage(target, 'Synthetic pinned warmup check')
+    response = wait(lambda: result.is_file() and json.loads(result.read_bytes()), 'pinned model RPC')
+    assert response['ok'] and messages == ['b-sooner'], (response, messages)
+    if is_stream:
+        wait(lambda: (root / 'probe-close.json').is_file(), 'drained and closed response stream')
+        payload = b''.join(base64.b64decode(chunk.get('payload') or '') for chunk in (
+            json.loads(line)['result'] for line in (root / 'probe-chunks.jsonl').read_text().splitlines()))
+        assert b'response.completed' in payload, payload
+    else:
+        body = json.loads(base64.b64decode(response['result']['body']))
+        assert body['status'] == 'completed', body
+    models = json.loads((root / 'probe-models.json').read_bytes())['result']['credentials']
+    assert any(row['id'] == target and MODEL in row['models'] for row in models)
+    api(path, {'enabled': False}, 'PATCH')
+
+    def refused(auth, label, model=MODEL):
+        result = stage(auth, label, model)
+        response = wait(lambda: result.is_file() and json.loads(result.read_bytes()), label)
+        assert not response['ok'] and messages == ['b-sooner'], (response, messages)
+        api(path, {'enabled': False}, 'PATCH')
+
+    refused('absent.json', 'missing auth model RPC')
+    refused(target, 'unavailable model RPC', 'nonexistent-fixture-model')
+    auth_status = '/v0/management/auth-files/status'
+    api(auth_status, {'name': target, 'disabled': True}, 'PATCH')
+    refused(target, 'disabled pinned auth RPC')
+    api(auth_status, {'name': target, 'disabled': False}, 'PATCH')
+
+    result = stage(target, 'QFR_BLOCK_PROBE')
+    assert started.wait(5), 'blocked before-headers probe never reached intended fake upstream'
+    assert messages == ['b-sooner', 'b-sooner']
+    (root / 'probe-request.json').unlink()  # Prevent a second probe if the host reloads/reconfigures.
+    reconfigure_entered = root / 'probe-reconfigure.entered'
+    reconfigure_entered.unlink(missing_ok=True)
+    change = (path, {'enabled': False}) if lifecycle == 'disable' else (
+        '/v0/management/plugins/test-warmup-probe/config', {'probe_revision': 2})
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        update = pool.submit(api, *change, 'PATCH')
+        try:
+            # Do not let the synthetic server finish the request until the host
+            # has had a chance to cancel it. The plugin joins the native caller.
+            if lifecycle == 'reconfigure':
+                wait(reconfigure_entered.is_file, 'CPA entered plugin.reconfigure', timeout=3)
+            wait(lambda: result.is_file() and result.stat().st_size > 0,
+                 'background model RPC ended during ' + lifecycle, timeout=3)
+            bounded = True
+        except AssertionError:
+            bounded = False
+        finally:
+            release.set()
+        update.result(timeout=10)
+    wait(lambda: result.is_file() and result.stat().st_size > 0, 'background callback after fixture release')
+    assert lifecycle != 'reconfigure' or reconfigure_entered.is_file(), 'CPA never entered reconfigure'
+    assert messages == ['b-sooner', 'b-sooner'], messages
+    print(json.dumps({'mode': mode, 'lifecycle': lifecycle, 'exact_pin': True, 'terminal_response': True,
+                      'no_fallback_on_ineligible_target': True, 'callback_ended_before_provider_response': bounded}), flush=True)
+    if not bounded:
+        raise AssertionError(f'CPA background model RPC did not return during {lifecycle} while upstream was stalled before headers')
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--cpa', required=True)
     parser.add_argument('--library', required=True)
+    parser.add_argument('--warmup-probe', choices=['execute', 'execute_stream', 'verify', 'feature'], help='Test warmup transport feasibility only')
+    parser.add_argument('--probe-lifecycle', choices=['disable', 'reconfigure'], default='disable')
     args = parser.parse_args()
     if os.environ.get('QFR_ISOLATED') != '1':
         root = Path(__file__).resolve().parents[1]
-        ui_fixture = os.environ.get('QFR_UI_FIXTURE') == '1'
+        ui_fixture = os.environ.get('QFR_UI_FIXTURE') == '1' and not args.warmup_probe
         network = ['--network', 'bridge', '-p', '127.0.0.1:18319:18318', '-p', '127.0.0.1:18444:443'] if ui_fixture else ['--network', 'none']
         subprocess.run(['docker', 'run', '--rm', *network,
                         '-e', 'QFR_UI_FIXTURE=' + ('1' if ui_fixture else '0'),
@@ -41,7 +124,9 @@ def main():
                         '-v', f'{root}:/project:ro',
                         '-v', f'{Path(args.cpa).resolve()}:/cpa:ro',
                         '-w', '/project', IMAGE, 'python3', 'tests/host_integration.py',
-                        '--cpa', '/cpa', '--library', '/project/' + str(Path(args.library))], check=True)
+                        '--cpa', '/cpa', '--library', '/project/' + str(Path(args.library)),
+                        *(['--warmup-probe', args.warmup_probe, '--probe-lifecycle', args.probe_lifecycle]
+                          if args.warmup_probe else [])], check=True)
         return
     accounts = {'a-later': [20, 120], 'b-sooner': [20, 20], 'c-third': [20, 60], 'd-backup': [10, 10]}
     exhausted = set()
@@ -55,6 +140,12 @@ def main():
     errors = []
     upstream_requests = []
     cancellation_started = threading.Event()
+    probe_started = threading.Event()
+    probe_release = threading.Event()
+    probe_disconnected = threading.Event()
+    warmup_e2e = args.warmup_probe == 'feature'
+    fixture_reset = None
+    activated = {}
 
     class Fixture(http.server.BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -78,6 +169,7 @@ def main():
             return account
 
         def do_GET(self):
+            nonlocal fixture_reset
             if self.path != '/backend-api/wham/usage':
                 errors.append('unexpected quota path ' + self.path)
                 return self.send(404, {})
@@ -85,6 +177,17 @@ def main():
             quota_calls.append(account)
             if quota_error:
                 return self.send(503, {'error': 'fixture'})
+            if warmup_e2e:
+                now = int(time.time())
+                if fixture_reset is None:
+                    fixture_reset = now + 12
+                reset = activated.get(account, fixture_reset if now < fixture_reset else now + 18000)
+                used = 60 if now < fixture_reset else 1 if account in activated else 0
+                return self.send(200, {'plan_type': 'plus', 'credits': {'has_credits': False, 'unlimited': False, 'balance': '0'},
+                    'rate_limit': {'allowed': True, 'limit_reached': False,
+                    'primary_window': {'used_percent': used, 'limit_window_seconds': 18000, 'reset_at': reset},
+                    'secondary_window': {'used_percent': 100 if account != 'b-sooner' else 5,
+                                         'limit_window_seconds': 604800, 'reset_after_seconds': 86400}}})
             return self.send(200, {'plan_type': 'plus', 'rate_limit': {
                 'allowed': True,
                 'primary_window': {'used_percent': 100 if account in exhausted else 20,
@@ -108,9 +211,25 @@ def main():
             request = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
             messages.append(account)
             upstream_requests.append(request)
+            if warmup_e2e:
+                activated[account] = int(time.time()) + 18000
             if 'QFR_CANCEL' in json.dumps(request.get('input')):
                 cancellation_started.set()
                 time.sleep(1)
+            if args.warmup_probe == 'verify' and len(messages) == 2:
+                probe_started.set()
+                self.connection.settimeout(8)
+                try:
+                    if not self.connection.recv(1):
+                        probe_disconnected.set()
+                except (ConnectionResetError, ssl.SSLEOFError):
+                    probe_disconnected.set()
+                except TimeoutError:
+                    pass
+                return
+            if args.warmup_probe and 'QFR_BLOCK_PROBE' in json.dumps(request.get('input')):
+                probe_started.set()
+                probe_release.wait(12)  # Fixture escape hatch if CPA cannot cancel or disable.
             if account in failures:
                 return self.send(failure_status, {'error': {'type': 'usage_limit_reached' if failure_status == 429 else 'server_error', 'message': 'fixture failure', 'resets_at': int(time.time()) + 60}})
             response = {'id': 'resp_fixture', 'object': 'response', 'status': 'completed', 'model': MODEL,
@@ -139,6 +258,13 @@ def main():
         plugins = root / 'plugins'
         auths.mkdir()
         plugins.mkdir()
+        warmup_state = root / 'warmup-state'
+        if warmup_e2e:
+            warmup_state.mkdir(mode=0o700)
+            for filename, value in {'warmup-attempts.lock': '', 'warmup-attempts.json': '{}', 'cpa-management.key': 'synthetic-management-key'}.items():
+                f = warmup_state / filename
+                f.touch(mode=0o600)
+                f.write_text(value)
         for account, (priority, _) in accounts.items():
             (auths / (account + '.json')).write_text(json.dumps({
                 'type': 'codex', 'access_token': 'synthetic-' + account, 'account_id': account,
@@ -146,6 +272,9 @@ def main():
                 'disabled': False, 'priority': priority}))
         (plugins / (PLUGIN + '.so')).write_bytes(Path(args.library).read_bytes())
         subprocess.run(['gcc', '-shared', '-fPIC', '/project/tests/competing_scheduler.c', '-o', str(plugins / 'test-scheduler.so')], check=True)
+        if args.warmup_probe:
+            subprocess.run(['gcc', '-shared', '-fPIC', '-pthread', '-Wall', '-Wextra', '-Werror',
+                            '/project/tests/warmup_host_probe.c', '/project/bridge.c', '-o', str(plugins / 'test-warmup-probe.so')], check=True)
         config = root / 'config.yaml'
         config.write_text(f'''config-version: 8
 server:
@@ -172,11 +301,17 @@ plugins:
     {PLUGIN}:
       enabled: true
       priority: 100
+{f'      warmup_after_reset: true{chr(10)}      warmup_model: {MODEL}{chr(10)}      warmup_cpa_url: http://127.0.0.1:18318{chr(10)}      warmup_state_dir: {warmup_state}' if warmup_e2e else ''}
     test-scheduler:
       enabled: false
       priority: 200
-''')
+'''+('''    test-warmup-probe:
+      enabled: false
+      priority: -100
+''' if args.warmup_probe else ''))
         env = dict(os.environ, SSL_CERT_FILE=str(cert), GOMEMLIMIT='256MiB', GOGC='20')
+        if args.warmup_probe:
+            env['QFR_TEST_MODEL_RPC'] = 'host.model.' + args.warmup_probe
         for k in list(env):
             if k.lower().endswith('_proxy'):
                 del env[k]
@@ -245,6 +380,57 @@ plugins:
         try:
             wait(ready, 'startup')
             wait(lambda: any(m['id'] == MODEL for m in json.loads(api('/v1/models', management=False))['data']), 'model registration')
+            if warmup_e2e:
+                def view():
+                    return json.loads(api(BASE + '/monitor'))
+                def outcome():
+                    return {r['id']: r.get('warmup_status') for r in view()['accounts']}
+                assert not view().get('warmup_error'), view().get('warmup_error')
+                assert all(r['quota']['five_hour']['utilization'] > 0 for r in view()['accounts']), 'fixture must first report active windows'
+                calls = len(quota_calls)
+                for _ in range(8): view()
+                assert len(quota_calls) == calls and messages == [], 'monitor triggered upstream work'
+                try:
+                    wait(lambda: bool(messages), 'warmup through two idle reads', timeout=235)
+                except AssertionError:
+                    print('WARMUP FIXTURE', outcome(), 'paused:', view().get('warmup_error'), 'quota calls:', len(quota_calls), flush=True)
+                    raise
+                assert messages == ['b-sooner'], (messages, outcome())
+                sent = wait(lambda: outcome().get('b-sooner.json') in ('sent', 'confirmed'), 'warmup completed')
+                assert sent and all(outcome().get(f'{x}.json') == 'quota_blocked' for x in ['a-later','c-third','d-backup']), outcome()
+                state = json.loads((warmup_state/'warmup-attempts.json').read_bytes())
+                assert len(state)==1 and list(state.values()) == [fixture_reset], state
+                wait(lambda: outcome().get('b-sooner.json') == 'confirmed', 'two stable post-warmup observations', timeout=190)
+                assert messages == ['b-sooner'], messages
+                api(BASE + '/config', {'warmup_after_reset':False}, 'PATCH')
+                wait(lambda: not any(outcome().values()), 'warmup disabled and status cleared')
+                assert messages == ['b-sooner'], messages
+                print('PASS warmup: natural reset, exact credential, exhausted accounts skipped, persisted claim, confirmed timer, disable and read-only monitor', flush=True)
+                return
+            if args.warmup_probe == 'verify':
+                target = next(r for r in json.loads(api('/v8/management/credentials'))['files'] if r['name'] == 'b-sooner.json')
+                verify_path = '/v8/management/credentials/verify'
+                payload = {'name': target['name'], 'auth_index': target['auth_index'], 'model': MODEL}
+                verified = json.loads(api(verify_path, payload))
+                assert verified['verified'] and messages == ['b-sooner']
+                connection = http.client.HTTPConnection('127.0.0.1', 18318, timeout=1)
+                try:
+                    connection.request('POST', verify_path, json.dumps(payload), {'Authorization': 'Bearer synthetic-management-key', 'Content-Type': 'application/json'})
+                    assert probe_started.wait(3), 'verify never reached the stalled synthetic upstream'
+                    try:
+                        connection.getresponse()
+                        raise AssertionError('stalled verification returned unexpectedly')
+                    except TimeoutError:
+                        pass
+                finally:
+                    connection.close()
+                assert probe_disconnected.wait(3), 'provider connection did not cancel after caller disconnected'
+                assert messages == ['b-sooner', 'b-sooner'], messages
+                print('PASS pinned verify completion, no fallback, cancellation before headers', flush=True)
+                return
+            if args.warmup_probe:
+                run_warmup_probe(args.warmup_probe, args.probe_lifecycle, root, api, status, wait, messages, probe_started, probe_release)
+                return
             # Native resource menu and protected JSON must remain separate.
             for path in [BASE + '/status', BASE + '/monitor']:
                 try:
@@ -420,7 +606,7 @@ plugins:
             log.seek(0)
             logs = log.read()
             assert 'synthetic-a-later' not in logs, 'credential leaked'
-            print('PASS CPA 8.1.0: authenticated status, enabled routing, all-tier candidates, streaming, '
+            print('PASS CPA integration: authenticated status, enabled routing, all-tier candidates, streaming, '
                   '24 concurrent requests, no request-path polling, five-hour/weekly exhaustion, '
                   'lower-tier failover, all-empty no upstream, recovery, rollover, unknown quota fallback, '
                   '500/502/503/429/401 failover, tool payloads, client cancellation, pinning, model eligibility, disable/reenable filtering, competing scheduler precedence, '

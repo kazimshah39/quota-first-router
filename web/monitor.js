@@ -129,6 +129,14 @@
   extra.open = expanded;
   extra.append(node('summary', a.last_error ? 'Polling error · details' : 'Details', a.last_error ? 'warning' : ''));
   if (Number.isInteger(priority)) extra.append(node('p', `Routing priority: ${priority}`, 'detail'));
+  const warmup = new Map([
+   ['pending', 'Waiting to send'], ['sent', 'Sent; checking the timer'], ['confirmed', 'Window confirmed'],
+   ['billing_unverified', 'Skipped: subscription-only use not confirmed'], ['quota_blocked', 'Skipped: quota not ready'],
+   ['credential_unavailable', 'Skipped: account unavailable or cooling down'], ['model_unavailable', 'Skipped: model unavailable'],
+   ['cpa_unavailable', 'Skipped: CPA unavailable'], ['already_attempted', 'Already attempted this window'],
+   ['state_unavailable', 'Paused: state unavailable'], ['refused', 'Request refused'], ['unknown', 'Outcome unknown; not retried'],
+  ]).get(a.warmup_status);
+  if (warmup) extra.append(node('p', `Warmup: ${warmup}`, 'detail'));
   if (note?.reason && note.reason !== 'ready' && note.reason !== a.availability && !(exhausted && note.reason === 'exhausted')) {
    extra.append(node('p', `At last decision: ${reason(note.reason)}`, 'detail'));
   }
@@ -169,7 +177,8 @@
    healthy: `${data.fresh_accounts}/${data.total_accounts} fresh`,
    starting: 'Checking quota…', no_accounts: '', degraded: 'Needs attention', failed: 'Quota checks failed',
   }[data.state] || '');
-  health.className = data.state === 'healthy' ? 'good' : data.state === 'failed' ? 'bad' : 'warning';
+  if (data.warmup_error) health.textContent = [health.textContent, 'Warmup paused'].filter(Boolean).join(' · ');
+  health.className = data.state === 'failed' ? 'bad' : data.state === 'healthy' && !data.warmup_error ? 'good' : 'warning';
   health.hidden = !health.textContent;
   $('coverage').hidden = !(data.accounts_truncated || record?.truncated);
   $('coverage').textContent = `${data.accounts_truncated||0} accounts and ${record?.truncated||0} candidate details omitted by safety limits.`;

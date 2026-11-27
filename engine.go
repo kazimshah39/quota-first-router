@@ -31,6 +31,15 @@ type accountState struct {
 	LastError   string         `json:"last_error,omitempty"`
 	NextRefresh time.Time      `json:"next_refresh"`
 	Failures    int            `json:"consecutive_failures"`
+
+	WarmupWindow      warmupWindowState `json:"-"`
+	WarmupCycle       time.Time         `json:"-"`
+	WarmupHandled     time.Time         `json:"-"`
+	WarmupRetryAt     time.Time         `json:"-"`
+	WarmupSentAt      time.Time         `json:"-"`
+	WarmupConfirmEnd  time.Time         `json:"-"`
+	WarmupConfirmRead time.Time         `json:"-"`
+	WarmupStatus      string            `json:"-"`
 }
 
 type engine struct {
@@ -47,6 +56,8 @@ type engine struct {
 	failed       atomic.Bool
 	refresh      sync.Mutex
 	observations *observation
+	warmup       *warmupWorker
+	warmupError  string
 }
 
 func newEngine(host authHost, fetcher quotaFetcher, cfg config) *engine {
@@ -98,8 +109,17 @@ func (e *engine) refreshQuota(ctx context.Context) {
 		eligible[entry.ID] = true
 		state := e.states[entry.ID]
 		stamp := fmt.Sprintf("%q:%q:%q:%d:%d", entry.Path, entry.Account, entry.Email, entry.Size, entry.ModTime.UnixNano())
-		if state.Index != entry.AuthIndex || state.Provider != provider || state.Stamp != stamp {
+		if state.Index != entry.AuthIndex || state.Provider != provider {
 			state = accountState{Index: entry.AuthIndex, Provider: provider, Stamp: stamp}
+		} else if state.Stamp != stamp {
+			// A verified request can update the file without changing the
+			// account. Invalidate quota immediately, but carry the warmup
+			// result provisionally until the refreshed quota confirms identity.
+			previous := state
+			state = accountState{Index: entry.AuthIndex, Provider: provider, Stamp: stamp}
+			if e.warmup != nil {
+				state.carryWarmupAcrossCredentialWrite(previous)
+			}
 		}
 		state.Email = monitorEmail(entry.Email)
 		priority := entry.Priority
@@ -134,12 +154,23 @@ func (e *engine) refreshQuota(ctx context.Context) {
 			continue
 		}
 		previousError := state.LastError
+		refreshIndex, refreshStamp := state.Index, state.Stamp
 		snap, err := e.readQuota(ctx, entry.AuthIndex, provider)
 		if ctx.Err() != nil {
 			return
 		}
 		now := e.now()
+		e.mu.Lock()
+		// The warmup worker may have recorded an outcome during the quota read.
+		state = e.states[entry.ID]
+		if state.Index != refreshIndex || state.Stamp != refreshStamp {
+			e.mu.Unlock()
+			continue
+		}
 		if err != nil {
+			state.WarmupWindow.breakIdleEvidence()
+			state.WarmupCycle = time.Time{}
+			state.WarmupConfirmEnd, state.WarmupConfirmRead = time.Time{}, time.Time{}
 			state.Failures++
 			state.LastError = "quota_refresh_failed"
 			for _, code := range []string{"custom_base_url_unsupported", "invalid_proxy_url", "credential_read_failed", "ineligible_credential"} {
@@ -163,13 +194,21 @@ func (e *engine) refreshQuota(ctx context.Context) {
 			state.LastError = ""
 			state.Failures = 0
 			state.NextRefresh = nextRefresh(snap, now, e.cfg.PollInterval)
+			if e.warmup != nil {
+				state.observeWarmup(snap, now, e.cfg)
+			}
 			if previousError != "" {
 				e.observations.incident(entry.ID, "quota", "recovered", now)
 			}
 		}
-		e.mu.Lock()
 		e.states[entry.ID] = state
 		e.mu.Unlock()
+	}
+	if e.warmup != nil {
+		select {
+		case e.warmup.wake <- struct{}{}:
+		default:
+		}
 	}
 }
 
