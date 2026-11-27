@@ -17,7 +17,8 @@ class Element {
   addEventListener(type, fn) { this.handlers[type] = fn; }
   setAttribute(k,v) { this.attributes[k] = v; }
   getAttribute(k) { return this.attributes[k] ?? null; }
-  focus() {}
+  focus() { this.focused = true; }
+  showModal() { this.open = true; }
   click() { this.handlers.click?.({preventDefault(){}}); }
 }
 async function main() {
@@ -40,6 +41,15 @@ async function main() {
   assert.equal(document.documentElement.dataset.theme,'light','follows browser preference');
   const submit=key=>{element('key').value=key;element('login').handlers.submit({preventDefault(){}});};
   const tick=()=>new Promise(resolve=>setImmediate(resolve));
+  const help = element('monitor-help'), helpButton = element('open-help');
+  element('help-content').scrollTop = 80;
+  helpButton.click();
+  assert.equal(help.open, true);
+  assert.equal(element('help-content').scrollTop, 0);
+  assert.equal(requests.length, 0, 'help opens without credentials and does not fetch account data');
+  help.open = false;
+  help.handlers.close();
+  assert.equal(helpButton.focused, true, 'closing help restores focus');
   submit('secret');assert.equal(requests.length,1);assert.equal(element('key').value,'');
   element('refresh').click();assert.equal(requests.length,1,'one request in flight');
   element('signout').click();assert.equal(requests[0].options.signal.aborted,true);

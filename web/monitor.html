@@ -11,6 +11,7 @@
   <header class="page-head">
     <div class="heading">
       <h1>Account quota</h1>
+      <button id="open-help" class="quiet-button help-trigger" type="button" aria-haspopup="dialog" aria-controls="monitor-help">How it works</button>
       <span id="health" hidden></span>
     </div>
     <div class="toolbar" id="toolbar" hidden>
@@ -50,5 +51,52 @@
       </div>
     </details>
   </div>
-</main></body>
+</main>
+<dialog id="monitor-help" class="help-drawer" aria-labelledby="help-title">
+  <header class="help-head">
+    <h2 id="help-title">How it works</h2>
+    <form method="dialog"><button type="submit" autofocus>Close</button></form>
+  </header>
+  <div id="help-content" class="help-content">
+    <p class="help-intro">A quick guide to account picks, quota, and warmup.</p>
+    <!-- Keep this guide and docs/monitor.md in sync with user-visible behavior. -->
+    <section class="help-topic">
+      <h3>How the router picks an account</h3>
+      <p>For Codex-only requests, the router checks higher-priority accounts first. Among usable accounts with the same priority, it prefers the one whose five-hour quota resets sooner. CPA still handles model access, cooldowns, and requests pinned to one account.</p>
+      <p class="help-example"><strong>Example:</strong> Two accounts at priority 20 reset in 20 minutes and 2 hours. The router picks the 20-minute one. A priority 10 account doesn’t jump ahead just because it resets sooner.</p>
+    </section>
+    <section class="help-topic">
+      <h3>Selected or CPA decided?</h3>
+      <p><strong>Selected</strong> means the plugin picked that account. <strong>CPA decided</strong> means the plugin left the choice to CPA, for example when a request isn’t Codex-only or quota readings are missing.</p>
+      <p class="help-example"><strong>Example:</strong> The router picks A, but CPA retries on B. Check <strong>Request Events</strong> to see which account actually served the request. <strong>Routing activity</strong> shows picks and polling issues, not final results.</p>
+    </section>
+    <section class="help-topic">
+      <h3>Read the quota bars and filters</h3>
+      <p><strong>30% left</strong> means 30% of that allowance remains. A countdown shows the expected reset; a passed timer still needs a fresh check. <strong>Not reported</strong> doesn’t mean zero.</p>
+      <ul class="help-filters">
+        <li><strong>All</strong> includes old and unknown readings.</li>
+        <li><strong>Available</strong> shows accounts with usable readings, not a guarantee they can serve your model.</li>
+        <li><strong>Exhausted</strong> shows accounts with a known quota limit hit.</li>
+        <li><strong>Free</strong> shows accounts the provider confirms are Free. The plugin skips them for automatic Codex routing and warmup. CPA can still honor an explicit pin.</li>
+      </ul>
+      <p class="help-example"><strong>Example:</strong> Open <strong>Exhausted</strong> to see which non-Free accounts hit a limit. Search narrows the cards and counts without checking quota again.</p>
+    </section>
+    <section class="help-topic">
+      <h3>What warmup does</h3>
+      <p><strong>Timer not started</strong> means the five-hour window is idle. If warmup is on, the plugin can send one small request to an eligible account to start its timer, even if it was already idle. The default model is <strong>GPT-6 Luna</strong>.</p>
+      <p class="help-example"><strong>Example:</strong> Warmup sends a small request at 9:00. If it starts a window, later quota checks confirm a reset around 2:00. Warmup uses a little quota; it doesn’t add any.</p>
+    </section>
+    <section class="help-topic">
+      <h3>Refresh, Updated, and Details</h3>
+      <p><strong>Refresh</strong> loads the readings the router already has. <strong>Updated</strong> is when the page loaded them, not when every account was checked. The router checks quota in the background, even when the page is closed.</p>
+      <p class="help-example"><strong>Example:</strong> The page says <strong>Updated 10:24</strong>, but an account was checked at 10:23. Open that account’s <strong>Details</strong> to see the check time, other limits, or a warmup result.</p>
+    </section>
+    <section class="help-topic">
+      <h3>Where to change settings</h3>
+      <p>The dashboard is read-only. Use <strong>Plugin management</strong> to turn the router or warmup on or off. Warmup is off by default for new setups.</p>
+      <p class="help-example"><strong>Example:</strong> Turn off warmup but leave the plugin enabled to keep routing without sending warmup requests.</p>
+    </section>
+  </div>
+</dialog>
+</body>
 </html>

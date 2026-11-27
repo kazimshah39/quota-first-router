@@ -289,6 +289,13 @@
   $('history-note').hidden = !older;
  }
  $('login').addEventListener('submit',event=>{event.preventDefault();generation++;key=$('key').value.trim();manualKey=Boolean(key);$('key').value='';failures=0;load();});
+ const help = $('monitor-help');
+ $('open-help').addEventListener('click',()=>{
+  if (help.open) return;
+  help.showModal();
+  $('help-content').scrollTop = 0;
+ });
+ help.addEventListener('close',()=>$('open-help').focus());
  $('refresh').addEventListener('click',load);
  $('signout').addEventListener('click',()=>{controller?.abort();disconnect('Key forgotten for this page. Connect again to continue.');$('key').focus();});
  $('search').addEventListener('input',render);$('model').addEventListener('change',()=>{selectedModel=$('model').value;render();});

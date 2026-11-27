@@ -58,6 +58,26 @@ button:disabled { opacity: .55; cursor: wait; }
 .quota-filters button:hover { color: var(--text); }
 .quota-filters button[aria-pressed="true"] { color: var(--selected-ink); border-bottom-color: currentColor; background: var(--selected); }
 .filter-count { margin-inline-start: 4px; font: 11px var(--numbers); }
+.help-trigger { min-height: 32px; padding-inline: 7px; }
+.help-trigger:hover { background: var(--selected); }
+.help-drawer {
+  position: fixed; inset: 0 0 0 auto; margin: 0; padding: 0;
+  width: min(100%, 440px); max-width: none; height: 100%; max-height: none;
+  overflow: hidden; color: var(--text); background: var(--panel);
+  border: 0; border-inline-start: 1px solid var(--line);
+  box-shadow: -8px 0 28px rgb(0 0 0 / .14);
+}
+.help-drawer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.help-drawer::backdrop { background: rgb(0 0 0 / .45); }
+.help-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px clamp(14px, 4vw, 20px); border-bottom: 1px solid var(--line); }
+.help-head h2 { font-size: 19px; }
+.help-content { overflow: auto; overscroll-behavior: contain; padding: 12px clamp(14px, 4vw, 20px) 20px; }
+.help-intro { color: var(--muted); margin-bottom: 12px; }
+.help-topic + .help-topic { margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--line); }
+.help-topic h3 { margin-bottom: 4px; }
+.help-topic .help-example { margin-top: 8px; padding: 7px 9px; border-inline-start: 2px solid var(--selected-ink); border-radius: 0 5px 5px 0; background: var(--selected); }
+.help-filters { margin: 6px 0 0; padding-inline-start: 20px; }
+.help-filters li + li { margin-top: 4px; }
 .accounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 298px), 1fr)); gap: 8px; align-items: start; }
 #coverage:not([hidden]) { margin-bottom: 6px; }
 .account { min-width: 0; padding: 9px 11px; }

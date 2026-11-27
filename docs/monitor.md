@@ -10,6 +10,8 @@ HTML/CSS/JS resources are public but generic and contain no diagnostics. Private
 
 ## Read the page
 
+Open **How it works** beside **Account quota** for a short guide with examples. It explains routing, the **Selected** badge, filters, warmup, refresh timing, and settings. The help ships with the same plugin build as the dashboard. **Updated** shows when the page last loaded the cache; an account’s **Details** shows when its quota was checked.
+
 - **Healthy observations:** current worker/cache coverage looks healthy, not evidence that inference succeeds. Accounts may still be exhausted.
 - **Waiting for quota:** accounts are discovered but initial quota reads have not completed. **No eligible accounts:** no cached eligible Codex accounts. Neither means broken inference by itself.
 - **Needs attention:** stale/unknown/reset-pending data, current polling error, roster failure or truncated account coverage. **Worker failed:** recovered panic/failure flag; check host logs and reconfigure/reload through Plugin management.
