@@ -49,21 +49,22 @@ async function main() {
   const now=Date.parse(snapshot.server_time), after=minutes=>new Date(now+minutes*60000).toISOString();
   const quota = {plan_type:'plus',five_hour:{utilization:20,resets_at:after(19)},seven_day:{utilization:62,resets_at:after(2*1440+4*60)},model_windows:{'gpt-example':[{utilization:100,resets_at:after(-1)}]}};
   const populated = {...snapshot, total_accounts:4, fresh_accounts:3, history:{...snapshot.history, decisions:[{model:'gpt-example', at:snapshot.server_time, sequence:1, decision:{auth_id:'primary', candidates:[{auth_id:'primary', priority:20, reason:'ready'}]}}]}, accounts:[
-    {id:'primary', availability:'ready', quota, warmup_status:'confirmed'},
-    {id:'cached', availability:'stale', quota:{five_hour:{utilization:0,resets_at:after(131)}}, warmup_status:'<unexpected status>'},
+    {id:'primary', availability:'ready', quota:{...quota,five_hour:{utilization:0,resets_at:after(300)}}, five_hour_idle:true},
+    {id:'cached', five_hour_idle:true, availability:'stale', quota:{five_hour:{utilization:0,resets_at:after(131)}}, warmup_status:'<unexpected status>'},
     {id:'monthly', availability:'ready', quota:{five_hour_absent:true,seven_day:{utilization:76}}},
     {id:'unread', availability:'unknown'},
   ]};
   submit('secret');requests[1].resolve({ok:true,status:200,json:async()=>populated});await tick();
   assert.equal(element('private').hidden,false);
   const list=element('accounts');
-  assert.deepEqual(list.findAll('progress').map(bar=>[bar.value,bar.dataset.tone]),[[80,'good'],[38,'low'],[0,'critical'],[100,'cached'],[24,'critical']]);
+  assert.deepEqual(list.findAll('progress').map(bar=>[bar.value,bar.dataset.tone]),[[100,'good'],[38,'low'],[0,'critical'],[100,'cached'],[24,'critical']]);
   assert.equal(list.children[3].findAll('progress').length,0,'unknown is not 0%');
   assert.match(list.children[2].textContent,/Monthly allowance/);
   assert.doesNotMatch(list.children[2].textContent,/5 hours/);
   assert.match(list.children[0].textContent,/Selected/);
   assert.doesNotMatch(list.children[0].textContent,/Quota usable|Last offered/);
-  assert.match(list.textContent,/19m left/);
+  assert.match(list.textContent,/Timer not started/);
+  assert.doesNotMatch(list.children[1].textContent,/Timer not started/,'stale evidence never gets the idle label');
   assert.match(list.textContent,/2h 11m left/);
   assert.match(list.textContent,/2d 4h left/);
   assert.match(list.textContent,/Waiting for reset check/);
@@ -74,7 +75,6 @@ async function main() {
   const details=list.findAll('details');
   assert.equal(details.every(detail=>detail.open===false),true);
   assert.match(details[0].textContent,/gpt-example/);
-  assert.match(details[0].textContent,/Warmup: Window confirmed/);
   assert.doesNotMatch(list.children[0].children[0].textContent,/Warmup/);
   assert.doesNotMatch(list.textContent,/unexpected status/);
   details[0].open=true;
@@ -82,7 +82,7 @@ async function main() {
   assert.equal(list.findAll('details')[0].open,true,'auto-refresh must not close expanded account');
   const named = {...populated, accounts:[
     {id:'codex-9router-527e014a-alex+work@example.test.json', availability:'exhausted', quota, priority:0},
-    {id:'codex-abcd1234-different@example.test-plus.json', email:'alex+work@example.test', availability:'ready', quota, priority:10},
+    {id:'codex-abcd1234-different@example.test-plus.json', email:'alex+work@example.test', availability:'ready', quota, priority:10, warmup_status:'confirmed'},
     {id:'codex-12345678-non-email.json', availability:'unknown'},
     {id:'codex-aabb1234-other@example.test-free.json', email:'user-name@googlemail.com', availability:'ready', priority:20, quota:{plan_type:'free'}},
   ]};
@@ -95,6 +95,8 @@ async function main() {
     assert.doesNotMatch(list.children[i].children[0].textContent,/priority/);
     assert.match(list.children[i].querySelector('details').textContent,new RegExp(`Routing priority: ${priority}`));
   }
+  assert.match(list.textContent,/19m left/);
+  assert.match(list.children[3].querySelector('details').textContent,/Warmup: Window confirmed/);
   assert.equal(list.children[1].dataset.exhausted,'true');
   assert.equal(list.children[1].findAll('span').find(el=>el.className==='quota-alert').attributes['aria-label'],'Quota exhausted');
   assert.doesNotMatch(list.children[1].textContent,/Quota exhausted/);

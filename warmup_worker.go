@@ -21,6 +21,7 @@ type warmupWorker struct {
 type warmupCandidate struct {
 	id, index, stamp, key string
 	cycle                 time.Time
+	anchored              bool
 }
 
 func openWarmupWorker(cfg config) (*warmupWorker, error) {
@@ -94,7 +95,7 @@ func (w *warmupWorker) process(ctx context.Context, e *engine, c warmupCandidate
 	if !e.warmupStillReady(c) {
 		return false, true
 	}
-	claimed, err := w.ledger.claim(c.key, c.cycle, e.now())
+	claimed, err := w.ledger.claim(c.key, c.cycle, e.now(), c.anchored)
 	if err != nil {
 		e.mu.Lock()
 		e.warmupError = "state_unavailable"
@@ -126,7 +127,7 @@ func (e *engine) warmupCandidates() []warmupCandidate {
 	now := e.now()
 	for id, s := range e.states {
 		if warmupAccountReady(s, now, e.cfg) {
-			result = append(result, warmupCandidate{id, s.Index, s.Stamp, s.Snapshot.warmupAccountKey, s.WarmupCycle})
+			result = append(result, warmupCandidate{id, s.Index, s.Stamp, s.Snapshot.warmupAccountKey, s.WarmupCycle, !s.WarmupWindow.activeEnds.IsZero()})
 		}
 	}
 	sort.Slice(result, func(i, j int) bool {
@@ -143,11 +144,12 @@ func (e *engine) warmupStillReady(c warmupCandidate) bool {
 	defer e.mu.RUnlock()
 	s, ok := e.states[c.id]
 	return ok && e.listErr == "" && e.warmupError == "" && s.Index == c.index && s.Stamp == c.stamp &&
-		warmupAccountReady(s, e.now(), e.cfg) && s.Snapshot.warmupAccountKey == c.key && s.WarmupCycle.Equal(c.cycle)
+		warmupAccountReady(s, e.now(), e.cfg) && s.Snapshot.warmupAccountKey == c.key && s.WarmupCycle.Equal(c.cycle) && c.anchored == !s.WarmupWindow.activeEnds.IsZero()
 }
 
 func warmupAccountReady(s accountState, now time.Time, cfg config) bool {
-	return s.Snapshot != nil && s.LastError == "" && !s.WarmupCycle.IsZero() && !now.Before(s.WarmupCycle) && now.Sub(s.WarmupCycle) <= warmupMaxLateness &&
+	return s.Snapshot != nil && s.LastError == "" && !s.WarmupCycle.IsZero() && !now.Before(s.WarmupCycle) &&
+		(s.WarmupWindow.activeEnds.IsZero() || now.Sub(s.WarmupCycle) <= warmupMaxLateness) &&
 		(s.WarmupHandled.IsZero() || s.WarmupHandled.Before(s.WarmupCycle)) && !now.Before(s.WarmupRetryAt) &&
 		warmupQuotaReady(*s.Snapshot, cfg.WarmupModel, now, min(cfg.MaxAge, 2*time.Minute))
 }

@@ -196,6 +196,8 @@ func (e *engine) refreshQuota(ctx context.Context) {
 			state.NextRefresh = nextRefresh(snap, now, e.cfg.PollInterval)
 			if e.warmup != nil {
 				state.observeWarmup(snap, now, e.cfg)
+			} else {
+				state.WarmupWindow.observe(snap, now, min(e.cfg.MaxAge, 2*time.Minute))
 			}
 			if previousError != "" {
 				e.observations.incident(entry.ID, "quota", "recovered", now)

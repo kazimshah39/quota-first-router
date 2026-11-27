@@ -50,13 +50,13 @@
   catch(error){if(epoch!==generation||document.hidden||current.signal.reason===hiddenAbort)return;failures++;$('connection').className='warning';$('connection').hidden=false;$('connection').textContent=(data?'Displayed data is stale. ':'')+(error.name==='AbortError'?'Monitor request timed out.':error.message)+' Use Refresh to retry.';}
   finally{clearTimeout(timeout);if(controller===current)controller=null;$('refresh').disabled=false;if(current.signal.reason===hiddenAbort&&!document.hidden)load();else schedule();}
  }
- function quotaReading(q, now, title, stale, unavailable='Not reported') {
+ function quotaReading(q, now, title, stale, idle=false) {
   const reading = node('div', undefined, 'quota-reading');
   const heading = node('div', undefined, 'quota-line');
   heading.append(node('span', title, 'quota-name'));
   reading.append(heading);
   if (!Number.isFinite(q?.utilization)) {
-   reading.append(node('span', unavailable, 'quota-caption'));
+   reading.append(node('span', 'Not reported', 'quota-caption'));
    return reading;
   }
   const remaining = Math.min(100, Math.max(0, 100 - q.utilization));
@@ -69,8 +69,8 @@
   bar.dataset.tone = stale ? 'cached' : remaining >= 70 ? 'good' : remaining >= 25 ? 'low' : 'critical';
   bar.setAttribute('aria-label', `${title} quota remaining`);
   bar.setAttribute('aria-valuetext', stale ? `${text} at last check (stale)` : text);
-  const reset = node('span', countdown(q.resets_at, now), 'quota-caption');
-  if (Number.isFinite(Date.parse(q.resets_at))) reset.title = `Reset: ${stamp(q.resets_at)}`;
+  const reset = node('span', idle && !stale ? 'Timer not started' : countdown(q.resets_at, now), 'quota-caption');
+  if ((!idle || stale) && Number.isFinite(Date.parse(q.resets_at))) reset.title = `Reset: ${stamp(q.resets_at)}`;
   reading.append(bar, reset);
   return reading;
  }
@@ -123,7 +123,7 @@
   if (markers.children.length) heading.append(markers);
   const quota = node('div', undefined, 'quota-grid');
   const stale = ['stale', 'reset_pending_refresh'].includes(a.availability);
-  if (!a.quota?.five_hour_absent) quota.append(quotaReading(a.quota?.five_hour, now, '5 hours', stale));
+  if (!a.quota?.five_hour_absent) quota.append(quotaReading(a.quota?.five_hour, now, '5 hours', stale, a.five_hour_idle === true));
   quota.append(quotaReading(a.quota?.seven_day, now, a.quota?.five_hour_absent ? 'Monthly allowance' : 'Long window', stale));
   const extra = node('details', undefined, 'account-extra');
   extra.open = expanded;

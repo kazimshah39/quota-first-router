@@ -99,9 +99,10 @@ func (l *warmupLedger) read() (map[string]int64, error) {
 	return entries, nil
 }
 
-// Max claimed active boundary per account prevents replay across small reset
-// timestamp changes, failures, restarts, and duplicate credential files.
-func (l *warmupLedger) claim(key string, cycle, now time.Time) (bool, error) {
+// One record per provider account prevents replay across failures, restarts,
+// and duplicate credential files. Keep old records: an unanchored idle window
+// has no trustworthy new cycle ID, regardless of when it is rediscovered.
+func (l *warmupLedger) claim(key string, cycle, now time.Time, anchored bool) (bool, error) {
 	if decoded, err := hex.DecodeString(key); err != nil || len(decoded) != 32 || cycle.Unix() <= 0 || cycle.After(now) {
 		return false, errWarmupLedger
 	}
@@ -110,17 +111,10 @@ func (l *warmupLedger) claim(key string, cycle, now time.Time) (bool, error) {
 		return false, errWarmupLedger
 	}
 	last, exists := entries[key]
-	if exists && cycle.Unix() <= last+int64(warmupResetJitter/time.Second) {
+	if exists && (!anchored || cycle.Unix() <= last+int64(warmupResetJitter/time.Second)) {
 		return false, nil
 	}
-	// No still-eligible cycle can be older than this. Bound the ledger without
-	// discarding a claim that could be reused in a current warmup window.
-	for id, boundary := range entries {
-		if now.Sub(time.Unix(boundary, 0)) > 24*time.Hour {
-			delete(entries, id)
-		}
-	}
-	if _, exists = entries[key]; !exists && len(entries) >= warmupLedgerLimit {
+	if !exists && len(entries) >= warmupLedgerLimit {
 		return false, errWarmupLedger
 	}
 	entries[key] = cycle.Unix()

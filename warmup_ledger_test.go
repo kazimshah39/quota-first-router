@@ -37,7 +37,7 @@ func TestWarmupLedgerExclusiveAndDurable(t *testing.T) {
 	}
 	now := time.Unix(2_000_000_000, 0)
 	key := warmupAccountKey("account")
-	if ok, err := l.claim(key, now.Add(-time.Minute), now); err != nil || !ok {
+	if ok, err := l.claim(key, now.Add(-time.Minute), now, false); err != nil || !ok {
 		t.Fatalf("first claim = %v %v", ok, err)
 	}
 	l.close()
@@ -47,11 +47,14 @@ func TestWarmupLedgerExclusiveAndDurable(t *testing.T) {
 	}
 	defer l.close()
 	for _, cycle := range []time.Time{now.Add(-time.Minute), now.Add(-time.Minute + 3*time.Second), now.Add(-5 * time.Hour)} {
-		if ok, err := l.claim(key, cycle, now); err != nil || ok {
+		if ok, err := l.claim(key, cycle, now, true); err != nil || ok {
 			t.Fatalf("duplicate claim = %v %v", ok, err)
 		}
 	}
-	if ok, err := l.claim(key, now.Add(5*time.Hour-time.Minute), now.Add(5*time.Hour)); err != nil || !ok {
+	if ok, err := l.claim(key, now.Add(48*time.Hour), now.Add(48*time.Hour), false); err != nil || ok {
+		t.Fatalf("replayed a previously claimed account with no known boundary: %v %v", ok, err)
+	}
+	if ok, err := l.claim(key, now.Add(5*time.Hour-time.Minute), now.Add(5*time.Hour), true); err != nil || !ok {
 		t.Fatalf("next cycle claim = %v %v", ok, err)
 	}
 	var entries map[string]int64

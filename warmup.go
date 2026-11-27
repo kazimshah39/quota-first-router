@@ -28,15 +28,16 @@ type warmupWindowState struct {
 	key        string
 	lastRead   time.Time
 	activeEnds time.Time
-	idleRead   time.Time
-	idleEnds   time.Time
+	sampleRead time.Time
+	sampleEnds time.Time
+	idleSince  time.Time
 }
 
-// observe returns the previous active boundary (the cycle key) only after a
-// natural reset followed by two zero-use samples with a sliding reset horizon.
-// It is deliberately independent of routing and cannot send a request. Callers
-// still have to check account, model and billing eligibility immediately before
-// sending and claim the returned cycle durably.
+// observe returns a candidate only after two zero-use observations prove the
+// reset horizon is sliding. A known active boundary identifies a natural
+// reset. Without one, idleSince is a local marker, not a provider cycle ID;
+// the ledger must only allow that catch-up when no prior claim exists.
+// Window evidence never affects routing eligibility or ranking.
 func (w *warmupWindowState) observe(s quotaSnapshot, now time.Time, maxAge time.Duration) time.Time {
 	if s.warmupAccountKey == "" || s.warmupAccountKey != w.key {
 		*w = warmupWindowState{key: s.warmupAccountKey}
@@ -66,22 +67,37 @@ func (w *warmupWindowState) observe(s quotaSnapshot, now time.Time, maxAge time.
 		w.breakIdleEvidence()
 		return time.Time{}
 	}
-	if w.activeEnds.IsZero() || s.ReadAt.Before(w.activeEnds.Add(warmupResetGrace)) || now.Sub(w.activeEnds) > warmupMaxLateness ||
-		*five.Utilization != 0 || !warmupClose(remaining-warmupWindow, warmupIdleSlack) {
+	if *five.Utilization != 0 || remaining <= 0 || remaining > warmupWindow+warmupIdleSlack {
 		w.breakIdleEvidence()
 		return time.Time{}
 	}
-	if w.idleRead.IsZero() {
-		w.idleRead, w.idleEnds = s.ReadAt, ends
+	elapsed, drift := s.ReadAt.Sub(w.sampleRead), ends.Sub(w.sampleEnds)
+	if w.sampleRead.IsZero() || elapsed >= maxAge {
+		w.breakIdleEvidence()
+		w.sampleRead, w.sampleEnds = s.ReadAt, ends
 		return time.Time{}
 	}
-	elapsed := s.ReadAt.Sub(w.idleRead)
-	if elapsed < warmupMinSample {
+	looksIdle := warmupClose(remaining-warmupWindow, warmupIdleSlack) && drift > 0 && warmupClose(drift-elapsed, warmupResetJitter)
+	if !looksIdle {
+		w.idleSince = time.Time{}
+	}
+	if elapsed >= warmupMinSample {
+		if looksIdle && w.idleSince.IsZero() {
+			w.idleSince = w.sampleRead
+		}
+		if !looksIdle && warmupClose(drift, warmupResetJitter) {
+			// A window can be active even when its usage rounds to zero.
+			w.activeEnds = ends
+		}
+		w.sampleRead, w.sampleEnds = s.ReadAt, ends
+	}
+	if w.idleSince.IsZero() {
 		return time.Time{}
 	}
-	drift := ends.Sub(w.idleEnds)
-	if elapsed >= maxAge || drift <= 0 || !warmupClose(drift-elapsed, warmupResetJitter) {
-		w.idleRead, w.idleEnds = s.ReadAt, ends
+	if w.activeEnds.IsZero() {
+		return w.idleSince
+	}
+	if s.ReadAt.Before(w.activeEnds.Add(warmupResetGrace)) || now.Sub(w.activeEnds) > warmupMaxLateness {
 		return time.Time{}
 	}
 	return w.activeEnds
@@ -89,7 +105,7 @@ func (w *warmupWindowState) observe(s quotaSnapshot, now time.Time, maxAge time.
 
 // A failed read breaks the two-sample idle proof, not the known active cycle.
 func (w *warmupWindowState) breakIdleEvidence() {
-	w.idleRead, w.idleEnds = time.Time{}, time.Time{}
+	w.sampleRead, w.sampleEnds, w.idleSince = time.Time{}, time.Time{}, time.Time{}
 }
 
 func warmupFresh(s quotaSnapshot, now time.Time, maxAge time.Duration) bool {

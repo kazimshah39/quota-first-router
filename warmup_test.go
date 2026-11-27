@@ -80,7 +80,6 @@ func TestWarmupUncertainReset(t *testing.T) {
 		use  []quotaSnapshot
 		now  time.Time
 	}{
-		{"already idle on startup", []quotaSnapshot{idle, later}, two},
 		{"read after eligibility window", []quotaSnapshot{active, idle, later}, boundary.Add(11 * time.Minute)},
 		{"stale", []quotaSnapshot{active, idle, later}, two.Add(5 * time.Minute)},
 		{"zero but fixed boundary", []quotaSnapshot{active, idle, warmupSnapshot(two, one.Add(warmupWindow), 0)}, two},
@@ -100,6 +99,24 @@ func TestWarmupUncertainReset(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestWarmupAlreadyIdleKeepsOneMarker(t *testing.T) {
+	now := time.Unix(2_000_000_000, 0)
+	var w warmupWindowState
+	for i := range 4 {
+		at := now.Add(time.Duration(i) * time.Minute)
+		got := w.observe(warmupSnapshot(at, at.Add(warmupWindow), 0), at, 2*time.Minute)
+		if i == 0 && !got.IsZero() || i > 0 && !got.Equal(now) || !w.activeEnds.IsZero() {
+			t.Fatalf("sample %d reset marker = %v, active boundary = %v", i, got, w.activeEnds)
+		}
+	}
+	// Real work can start the clock even when its usage rounds to zero.
+	at := now.Add(4 * time.Minute)
+	end := at.Add(warmupWindow - time.Minute)
+	if got := w.observe(warmupSnapshot(at, end, 0), at, 2*time.Minute); !got.IsZero() || !w.idleSince.IsZero() || !w.activeEnds.Equal(end) {
+		t.Fatalf("stable zero-use reset not recognized: due %v, state %#v", got, w)
 	}
 }
 

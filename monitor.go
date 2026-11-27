@@ -31,6 +31,7 @@ type monitorAccount struct {
 	QuotaDetailsTruncated int            `json:"quota_details_truncated,omitempty"`
 	Availability          string         `json:"availability"`
 	WarmupStatus          string         `json:"warmup_status,omitempty"`
+	FiveHourIdle          bool           `json:"five_hour_idle,omitempty"`
 }
 type monitorSnapshot struct {
 	Version           string              `json:"version"`
@@ -65,7 +66,7 @@ func (e *engine) monitor() monitorSnapshot {
 	sort.Strings(ids)
 	for _, id := range ids[:min(len(ids), monitorAccountLimit)] {
 		a := e.states[id]
-		s.Accounts = append(s.Accounts, monitorAccount{ID: id, Email: a.Email, Priority: a.Priority, Index: a.Index, Error: a.LastError, Failures: a.Failures, NextRefresh: a.NextRefresh, Quota: a.Snapshot, Availability: "unknown", WarmupStatus: a.WarmupStatus})
+		s.Accounts = append(s.Accounts, monitorAccount{ID: id, Email: a.Email, Priority: a.Priority, Index: a.Index, Error: a.LastError, Failures: a.Failures, NextRefresh: a.NextRefresh, Quota: a.Snapshot, Availability: "unknown", WarmupStatus: a.WarmupStatus, FiveHourIdle: a.LastError == "" && a.Snapshot != nil && !a.WarmupWindow.idleSince.IsZero() && warmupFresh(*a.Snapshot, now, min(e.cfg.MaxAge, 2*time.Minute))})
 	}
 	e.mu.RUnlock()
 	// Quota snapshots are immutable after publication by refreshQuota. Copy and

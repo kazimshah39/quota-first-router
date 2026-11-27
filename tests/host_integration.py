@@ -110,7 +110,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--cpa', required=True)
     parser.add_argument('--library', required=True)
-    parser.add_argument('--warmup-probe', choices=['execute', 'execute_stream', 'verify', 'feature'], help='Test warmup transport feasibility only')
+    parser.add_argument('--warmup-probe', choices=['execute', 'execute_stream', 'verify', 'feature', 'idle-feature'], help='Test warmup transport feasibility only')
     parser.add_argument('--probe-lifecycle', choices=['disable', 'reconfigure'], default='disable')
     args = parser.parse_args()
     if os.environ.get('QFR_ISOLATED') != '1':
@@ -143,7 +143,8 @@ def main():
     probe_started = threading.Event()
     probe_release = threading.Event()
     probe_disconnected = threading.Event()
-    warmup_e2e = args.warmup_probe == 'feature'
+    warmup_e2e = args.warmup_probe in ('feature', 'idle-feature')
+    already_idle = args.warmup_probe == 'idle-feature'
     fixture_reset = None
     activated = {}
 
@@ -180,7 +181,7 @@ def main():
             if warmup_e2e:
                 now = int(time.time())
                 if fixture_reset is None:
-                    fixture_reset = now + 12
+                    fixture_reset = now - 1 if already_idle else now + 12
                 reset = activated.get(account, fixture_reset if now < fixture_reset else now + 18000)
                 used = 60 if now < fixture_reset else 1 if account in activated else 0
                 return self.send(200, {'plan_type': 'plus', 'credits': {'has_credits': False, 'unlimited': False, 'balance': '0'},
@@ -386,7 +387,8 @@ plugins:
                 def outcome():
                     return {r['id']: r.get('warmup_status') for r in view()['accounts']}
                 assert not view().get('warmup_error'), view().get('warmup_error')
-                assert all(r['quota']['five_hour']['utilization'] > 0 for r in view()['accounts']), 'fixture must first report active windows'
+                assert all((r['quota']['five_hour']['utilization'] == 0) == already_idle for r in view()['accounts']), 'fixture must start in the requested window state'
+                assert not any(r.get('five_hour_idle') for r in view()['accounts']), 'one observation did not prove idle'
                 calls = len(quota_calls)
                 for _ in range(8): view()
                 assert len(quota_calls) == calls and messages == [], 'monitor triggered upstream work'
@@ -400,13 +402,19 @@ plugins:
                 sent = wait(lambda: outcome().get('b-sooner.json') in ('sent', 'confirmed'), 'warmup completed')
                 assert sent and all(outcome().get(f'{x}.json') == 'quota_blocked' for x in ['a-later','c-third','d-backup']), outcome()
                 state = json.loads((warmup_state/'warmup-attempts.json').read_bytes())
-                assert len(state)==1 and list(state.values()) == [fixture_reset], state
+                assert len(state) == 1, state
+                claim = next(iter(state.values()))
+                assert ((fixture_reset < claim <= int(time.time())) if already_idle else claim == fixture_reset), state
                 wait(lambda: outcome().get('b-sooner.json') == 'confirmed', 'two stable post-warmup observations', timeout=190)
+                rows = {r['id']: r for r in view()['accounts']}
+                assert not rows['b-sooner.json'].get('five_hour_idle'), 'confirmed timer shown as idle'
+                assert all(rows[f'{x}.json'].get('five_hour_idle') for x in ['a-later','c-third','d-backup']), rows.keys()
                 assert messages == ['b-sooner'], messages
                 api(BASE + '/config', {'warmup_after_reset':False}, 'PATCH')
                 wait(lambda: not any(outcome().values()), 'warmup disabled and status cleared')
                 assert messages == ['b-sooner'], messages
-                print('PASS warmup: natural reset, exact credential, exhausted accounts skipped, persisted claim, confirmed timer, disable and read-only monitor', flush=True)
+                start = 'already idle' if already_idle else 'natural reset'
+                print(f'PASS warmup: {start}, exact credential, exhausted accounts skipped, persisted claim, confirmed timer, disable and read-only monitor', flush=True)
                 return
             if args.warmup_probe == 'verify':
                 target = next(r for r in json.loads(api('/v8/management/credentials'))['files'] if r['name'] == 'b-sooner.json')

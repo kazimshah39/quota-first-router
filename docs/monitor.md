@@ -35,7 +35,7 @@ HTML/CSS/JS resources are public but generic and contain no diagnostics. Private
 
 Polling incidents show sanitized codes such as `quota_http_503`; `credential_list_failed` means the host roster read failed, and `worker_failed` means the monitoring worker reported a failure. `Recovered` means a later quota/roster read succeeded. These codes do not report inference failures.
 
-When optional warmup is enabled, the last outcome appears under an account’s **Details**. **Window confirmed** means two fresh quota reads showed a stable new reset; HTTP success alone does not confirm the timer. **Warmup paused** does not mean routing or quota polling stopped.
+**Timer not started** means fresh quota reads showed an idle five-hour window, not a countdown. When optional warmup is enabled, the last outcome appears under an account’s **Details**. **Window confirmed** means two fresh quota reads showed a stable new reset; HTTP success alone does not confirm the timer. **Warmup paused** does not mean routing or quota polling stopped.
 
 ## Refresh and history limits
 
