@@ -3,7 +3,11 @@
  const $ = id => document.getElementById(id);
  const endpoint = '/v0/management/plugins/quota-first-router/monitor';
  const hiddenAbort = Symbol('hidden tab');
+ const pluginFrameSuffix = '/plugin-host/v0/resource/plugins/quota-first-router/monitor';
+ const consolePath = location.pathname?.endsWith('/api/v1' + pluginFrameSuffix)
+  ? location.pathname.slice(0, -pluginFrameSuffix.length) : '';
  let key = '', data = null, timer = null, controller = null, failures = 0, selectedModel = '', manualKey = false, allActivity = false, generation = 0;
+ let routing = null, routingReadAt = null;
  let quotaFilter = 'all';
  const filterNames = {all:'All', available:'Available', exhausted:'Exhausted', free:'Free'};
  const activityLimit = 6;
@@ -23,7 +27,23 @@
   if (hours < 24) return `${hours}h${minutes % 60 ? ` ${minutes % 60}m` : ''} left`;
   return `${Math.floor(hours / 24)}d${hours % 24 ? ` ${hours % 24}h` : ''} left`;
  }
- function age(value,now){return value?`${Math.max(0,Math.floor((now-Date.parse(value))/1000))}s ago`:'No successful refresh';}
+ function timestamp(value) {
+  return value && !String(value).startsWith('0001') ? Date.parse(value) : NaN;
+ }
+ function showTiming(next, reset) {
+  let last = -Infinity, upcoming = Infinity;
+  for (const a of next.accounts) {
+   const read = timestamp(a.quota?.read_at), attempt = timestamp(a.next_refresh);
+   if (Number.isFinite(read)) last = Math.max(last, read);
+   if (Number.isFinite(attempt)) upcoming = Math.min(upcoming, attempt);
+  }
+  const elapsed = Number.isFinite(last) ? Math.max(0, Math.floor((Date.parse(next.server_time) - last) / 1000)) + 's ago' : 'Not yet';
+  const attempt = Number.isFinite(upcoming) ? stamp(upcoming) : 'Not scheduled';
+  const status = $('connection');
+  status.className = 'good';
+  status.hidden = false;
+  status.textContent = (reset ? 'History reset · ' : '') + 'Last read: ' + elapsed + ' · Next attempt: ' + attempt;
+ }
  function inheritedKey(){try{let raw=localStorage.getItem('cli-proxy-auth');if(!raw)return '';if(raw.startsWith('enc::v2::')){const bytes=Uint8Array.from(atob(raw.slice(9)),c=>c.charCodeAt(0));const salt=new TextEncoder().encode('cli-proxy-api-webui::secure-storage|'+location.host);for(let i=0;i<bytes.length;i++)bytes[i]^=salt[i%salt.length];raw=new TextDecoder().decode(bytes);}const state=JSON.parse(raw).state;const base=new URL(state.apiBase||location.origin,location.origin);return base.origin===location.origin&&typeof state.managementKey==='string'?state.managementKey:'';}catch{return '';}}
  function setTheme() {
   let value;
@@ -37,7 +57,7 @@
   if (document.documentElement.dataset.theme !== value) document.documentElement.dataset.theme = value;
  }
  function disconnect(message) {
-  generation++; controller?.abort(); key=''; data=null; failures=0; selectedModel=''; manualKey=false; allActivity=false;
+  generation++; controller?.abort(); key=''; data=null; routing=null; routingReadAt=null; failures=0; selectedModel=''; manualKey=false; allActivity=false;
   clearTimeout(timer);
   for (const id of ['private','toolbar','signout','health','model-filter','activity-more']) $(id).hidden = true;
   quotaFilter = 'all';
@@ -48,9 +68,58 @@
   $('model').firstChild.value=''; $('search').value=''; $('login').hidden=false;
   $('connection').textContent=message; $('connection').className=message ? 'warning' : ''; $('connection').hidden=!message;
  }
+ async function readRouting(signal) {
+  // Only Oh My CPA's same-origin plugin host exposes its saved arrangement. The
+  // console session authorizes these GETs; never send the CPA management key.
+  const options = {signal: AbortSignal.any([signal, AbortSignal.timeout(2500)]), cache:'no-store', credentials:'same-origin', redirect:'error'};
+  async function read(path) {
+   const url = new URL(location.origin);
+   url.pathname = consolePath + path;
+   const response = await fetch(url.href, options);
+   if (response.status === 401 || response.status === 403) return null;
+   if (!response.ok) throw new Error('Routing order not available');
+   return response.json();
+  }
+  const [board, preferences] = await Promise.all([read('/management/routing'), read('/preferences')]);
+  if (!Array.isArray(board?.members)) return null;
+  const priorities = new Set(), members = new Map(), membersByIndex = new Map(), ranks = new Map();
+  for (const [position, member] of board.members.entries()) {
+   if (!Number.isInteger(member?.priority)) continue;
+   priorities.add(member.priority);
+   if (member.kind !== 'credential' || typeof member.id !== 'string' || typeof member.key !== 'string' || typeof member.name !== 'string') continue;
+   const {key, name, priority} = member;
+   const card = {key, name, priority, position};
+   members.set(member.id, card);
+   const index = member.weights?.[0]?.auth_index;
+   if (typeof index === 'string' && index) membersByIndex.set(index, card);
+  }
+  const saved = preferences?.preferences?.routing_card_order;
+  for (const [key, rank] of Object.entries(saved ?? {})) {
+   if (typeof rank === 'string' && /^\d+$/.test(rank) && Number.isSafeInteger(Number(rank))) ranks.set(key, Number(rank));
+  }
+  return {priorities, members, membersByIndex, ranks};
+ }
  function schedule(){clearTimeout(timer);if(!document.hidden&&key)timer=setTimeout(load,Math.min(60000,5000*2**Math.min(failures,4)));}
  async function load(){if(controller||!key||document.hidden)return;clearTimeout(timer);controller=new AbortController();const current=controller,epoch=generation,timeout=setTimeout(()=>current.abort(),10000);$('refresh').disabled=true;
-  try{const response=await fetch(endpoint,{headers:{Authorization:'Bearer '+key},signal:controller.signal,cache:'no-store',credentials:'same-origin'});if(epoch!==generation||current.signal.aborted)return;if(response.status===401||response.status===403){disconnect('Management access was rejected. Connect again to continue.');return;}if(!response.ok)throw new Error(response.status===404?'Monitor unavailable. The plugin may be disabled or unloaded; check Plugin management.':`Monitor request failed (HTTP ${response.status}).`);const next=await response.json();if(epoch!==generation||current.signal.aborted)return;if(!next.history)throw new Error('Monitor is stopped or unavailable. Check Plugin management.');const reset=data&&data.history.epoch!==next.history.epoch;data=next;failures=0;render();$('connection').className='good';$('connection').hidden=false;$('connection').textContent=(reset?'History reset · ':'')+`Updated ${new Date().toLocaleTimeString()}`;$('private').hidden=false;$('toolbar').hidden=false;$('signout').hidden=!manualKey;$('login').hidden=true;}
+  try {
+   const response = await fetch(endpoint,{headers:{Authorization:'Bearer '+key},signal:current.signal,cache:'no-store',credentials:'same-origin'});
+   if (epoch!==generation || current.signal.aborted) return;
+   if (response.status===401 || response.status===403) { disconnect('Management access was rejected. Connect again to continue.'); return; }
+   if (!response.ok) throw new Error(response.status===404?'Monitor unavailable. The plugin may be disabled or unloaded; check Plugin management.':`Monitor request failed (HTTP ${response.status}).`);
+   const next = await response.json();
+   if (epoch!==generation || current.signal.aborted) return;
+   if (!next.history) throw new Error('Monitor is stopped or unavailable. Check Plugin management.');
+   if (consolePath && (routingReadAt===null || Date.now()-routingReadAt>=30000)) {
+    routingReadAt = Date.now();
+    try {
+     const arrangement = await readRouting(current.signal);
+     if (epoch===generation && !current.signal.aborted) routing = arrangement;
+    } catch { /* Keep the last saved order on temporary console failures. */ }
+   }
+   if (epoch!==generation || current.signal.aborted) return;
+   const reset = data && data.history.epoch!==next.history.epoch;
+   data=next;failures=0;render();showTiming(next,reset);$('private').hidden=false;$('toolbar').hidden=false;$('signout').hidden=!manualKey;$('login').hidden=true;
+  }
   catch(error){if(epoch!==generation||document.hidden||current.signal.reason===hiddenAbort)return;failures++;$('connection').className='warning';$('connection').hidden=false;$('connection').textContent=(data?'Displayed data is stale. ':'')+(error.name==='AbortError'?'Monitor request timed out.':error.message)+' Use Refresh to retry.';}
   finally{clearTimeout(timeout);if(controller===current)controller=null;$('refresh').disabled=false;if(current.signal.reason===hiddenAbort&&!document.hidden)load();else schedule();}
  }
@@ -114,7 +183,32 @@
    button.setAttribute('aria-pressed', String(quotaFilter === filter));
   }
  }
- function renderAccount(a, note, record, now, expanded) {
+ function accountGroups(accounts) {
+  const groups = new Map();
+  const priorities = new Set(routing?.priorities);
+  for (const account of accounts) {
+   const member = routing?.membersByIndex.get(account.auth_index) ?? routing?.members.get(account.id);
+   const priority = member?.priority ?? (Number.isInteger(account.priority) ? account.priority : null);
+   if (priority !== null) priorities.add(priority);
+   if (!groups.has(priority)) groups.set(priority, []);
+   groups.get(priority).push({account, member});
+  }
+  const tiers = [...priorities].sort((a,b) => b-a);
+  if (groups.has(null)) tiers.push(null);
+  return tiers.flatMap((priority, index) => {
+   const group = groups.get(priority);
+   if (!group) return [];
+   const title = priority === null ? 'Tier unknown' : `Tier ${index + 1}`;
+   group.sort((a,b) => {
+    const rank = item => routing?.ranks.get(item.member?.key) ?? Infinity;
+    const name = item => item.member?.name ?? accountTitle(item.account);
+    const position = item => item.member?.position ?? Infinity;
+    return rank(a) - rank(b) || name(a).localeCompare(name(b)) || position(a) - position(b) || a.account.id.localeCompare(b.account.id);
+   });
+   return [{title, priority, accounts: group.map(item => item.account)}];
+  });
+ }
+ function renderAccount(a, note, record, now) {
   const account = node('article', undefined, 'account');
   account.dataset.accountId = a.id;
   const heading = node('header', undefined, 'account-head');
@@ -122,7 +216,6 @@
   const title = node('h3', accountTitle(a));
   const availability = quotaAvailability(a, record?.model, now);
   const exhausted = availability === 'exhausted';
-  const priority = note?.priority ?? a.priority;
   const meta = [];
   const plan = planNames.get(a.quota?.plan_type);
   if (plan) meta.push(plan);
@@ -148,35 +241,15 @@
   const quota = node('div', undefined, 'quota-grid');
   const stale = ['stale', 'reset_pending_refresh'].includes(a.availability);
   if (!a.quota?.five_hour_absent) quota.append(quotaReading(a.quota?.five_hour, now, '5 hours', stale, a.five_hour_idle === true));
-  quota.append(quotaReading(a.quota?.seven_day, now, a.quota?.five_hour_absent ? 'Monthly allowance' : 'Long window', stale));
-  const extra = node('details', undefined, 'account-extra');
-  extra.open = expanded;
-  extra.append(node('summary', a.last_error ? 'Polling error · details' : 'Details', a.last_error ? 'warning' : ''));
-  if (Number.isInteger(priority)) extra.append(node('p', `Routing priority: ${priority}`, 'detail'));
-  const warmup = new Map([
-   ['pending', 'Waiting to send'], ['sent', 'Sent; checking the timer'], ['confirmed', 'Window confirmed'],
-   ['billing_unverified', 'Skipped: subscription-only use not confirmed'], ['quota_blocked', 'Skipped: quota not ready'],
-   ['credential_unavailable', 'Skipped: account unavailable or cooling down'], ['model_unavailable', 'Skipped: model unavailable'],
-   ['cpa_unavailable', 'Skipped: CPA unavailable'], ['already_attempted', 'Already attempted this window'],
-   ['state_unavailable', 'Paused: state unavailable'], ['refused', 'Request refused'], ['unknown', 'Outcome unknown; not retried'],
-  ]).get(a.warmup_status);
-  if (warmup) extra.append(node('p', `Warmup: ${warmup}`, 'detail'));
-  if (note?.reason && note.reason !== 'ready' && note.reason !== a.availability && !(exhausted && note.reason === 'exhausted')) {
-   extra.append(node('p', `At last decision: ${reason(note.reason)}`, 'detail'));
+  quota.append(quotaReading(a.quota?.seven_day, now, a.quota?.five_hour_absent ? 'Monthly allowance' : 'Weekly', stale));
+  account.append(heading, quota);
+  const blocking = w => !stale && w.utilization >= 100 && (!w.resets_at || Date.parse(w.resets_at) > now);
+  const model = modelKey(record?.model);
+  if (model && (a.quota?.model_windows?.[model] || []).some(blocking)) account.append(node('p', record.model + ' quota limit reached', 'account-notice warning'));
+  if (a.last_error) account.append(node('p', 'Quota check failed: ' + a.last_error, 'account-notice bad'));
+  if (a.warmup_status === 'refused' || a.warmup_status === 'unknown') {
+   account.append(node('p', a.warmup_status === 'refused' ? 'Warmup request refused' : 'Warmup outcome unknown', 'account-notice warning'));
   }
-  extra.append(node('p', `Last read: ${age(a.quota?.read_at, now)} · Next attempt: ${stamp(a.next_refresh)}`, 'detail'));
-  if (a.last_error) extra.append(node('p', `${a.last_error} · ${a.consecutive_failures} consecutive failures`, 'bad'));
-  if (a.quota?.five_hour_absent) extra.append(node('p', 'No five-hour window; ranks after known resets within the same tier.', 'detail'));
-  if (a.quota_details_truncated) extra.append(node('p', `${a.quota_details_truncated} quota details omitted by safety limits.`, 'warning'));
-  const windows = node('div', undefined, 'quota-grid');
-  for (const window of a.quota?.other_windows || []) windows.append(quotaReading(window, now, 'Other limit', stale));
-  const modelFilter = modelKey(selectedModel);
-  for (const [model, list] of Object.entries(a.quota?.model_windows || {})) {
-   if (modelFilter && model !== modelFilter) continue;
-   for (const window of list) windows.append(quotaReading(window, now, model, stale));
-  }
-  if (windows.children.length) extra.append(windows);
-  account.append(heading, quota, extra);
   return account;
  }
  function render() {
@@ -208,25 +281,33 @@
   $('coverage').textContent = `${data.accounts_truncated||0} accounts and ${record?.truncated||0} candidate details omitted by safety limits.`;
   const search = $('search').value.trim().toLowerCase();
   const counts = {all:0, available:0, exhausted:0, free:0};
-  const accounts = data.accounts.filter(a => {
-   if (!a.id.toLowerCase().includes(search) && !a.email?.toLowerCase().includes(search) && !accountTitle(a).toLowerCase().includes(search)) return false;
-   const group = quotaGroup(a, record?.model, now);
-   counts.all++;
-   if (group) counts[group]++;
-   return quotaFilter === 'all' || quotaFilter === group;
+  const list = $('accounts');
+  let shown = 0;
+  const sections = accountGroups(data.accounts).flatMap(({title, priority, accounts}) => {
+   const cards = [];
+   for (const a of accounts) {
+    if (!a.id.toLowerCase().includes(search) && !a.email?.toLowerCase().includes(search) && !accountTitle(a).toLowerCase().includes(search)) continue;
+    const group = quotaGroup(a, record?.model, now);
+    counts.all++;
+    if (group) counts[group]++;
+    if (quotaFilter !== 'all' && quotaFilter !== group) continue;
+    cards.push(renderAccount(a, notes.get(a.id), record, now));
+   }
+   if (!cards.length) return [];
+   shown += cards.length;
+   const section = node('section', undefined, 'account-tier');
+   const grid = node('div', undefined, 'account-grid');
+   grid.append(...cards);
+   const heading = node('h2', title);
+   if (priority !== null) heading.append(node('span', ' (Priority ' + priority + ')', 'tier-priority'));
+   section.append(heading, grid);
+   return [section];
   });
   updateFilterCounts(counts);
-  const filterStatus = accounts.length + (accounts.length === 1 ? ' account shown' : ' accounts shown');
+  const filterStatus = shown + (shown === 1 ? ' account shown' : ' accounts shown');
   if ($('filter-status').textContent !== filterStatus) $('filter-status').textContent = filterStatus;
-  accounts.sort((a,b)=>{const x=notes.get(a.id),y=notes.get(b.id);if(!x&&!y)return a.id.localeCompare(b.id);if(!x)return 1;if(!y)return -1;return y.priority-x.priority||(x.five_hour_reset?Date.parse(x.five_hour_reset):Infinity)-(y.five_hour_reset?Date.parse(y.five_hour_reset):Infinity)||a.id.localeCompare(b.id);});
-  const list = $('accounts');
-  const expanded = new Set([...list.children].filter(card => card.querySelector('details')?.open).map(card => card.dataset.accountId));
-  const focusedSummary = document.activeElement;
-  const focusedCard = focusedSummary?.tagName === 'SUMMARY' && focusedSummary.closest('.account');
-  const focusedID = focusedCard ? focusedCard.dataset.accountId : null;
-  list.replaceChildren(...accounts.map(a => renderAccount(a, notes.get(a.id), record, now, expanded.has(a.id))));
-  if (focusedID !== null) [...list.children].find(card => card.dataset.accountId === focusedID)?.querySelector('summary').focus({preventScroll:true});
-  if (!accounts.length) empty(list, search ? 'No accounts match this search and filter.' : {
+  list.replaceChildren(...sections);
+  if (!shown) empty(list, search ? 'No accounts match this search and filter.' : {
    all:'No Codex accounts discovered.', available:'No accounts with usable quota.',
    exhausted:'No accounts with confirmed quota exhaustion.', free:'No confirmed Free accounts.',
   }[quotaFilter]);
@@ -296,7 +377,7 @@
   $('help-content').scrollTop = 0;
  });
  help.addEventListener('close',()=>$('open-help').focus());
- $('refresh').addEventListener('click',load);
+ $('refresh').addEventListener('click',()=>{routingReadAt=null;load();});
  $('signout').addEventListener('click',()=>{controller?.abort();disconnect('Key forgotten for this page. Connect again to continue.');$('key').focus();});
  $('search').addEventListener('input',render);$('model').addEventListener('change',()=>{selectedModel=$('model').value;render();});
  for (const filter of Object.keys(filterNames)) $('filter-' + filter).addEventListener('click',()=>{
@@ -304,7 +385,7 @@
  });
  $('activity-more').addEventListener('click',()=>{allActivity=!allActivity;renderActivity();});
  systemTheme.addEventListener('change',setTheme);
- document.addEventListener('visibilitychange',()=>{clearTimeout(timer);if(document.hidden)controller?.abort(hiddenAbort);else load();});
+ document.addEventListener('visibilitychange',()=>{clearTimeout(timer);if(document.hidden)controller?.abort(hiddenAbort);else {routingReadAt=null;load();}});
  try{if(parent!==window)new MutationObserver(setTheme).observe(parent.document.documentElement,{attributes:true,attributeFilter:['data-theme','data-theme-mode']});}catch{}
  setTheme();key=inheritedKey();if(key)load();else disconnect('');
 })();

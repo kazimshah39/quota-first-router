@@ -44,7 +44,7 @@ Set `GO=go` to use your installed Go. `make cpa` downloads CPA 8.1.0 and verifie
 
 ## Install and observe
 
-**CPA 8.1.0: Linux, macOS and Windows, each amd64/arm64.** [Version 0.2.0](https://github.com/kazimshah39/quota-first-router/releases/tag/v0.2.0) provides all six native-tested packages. Linux requires glibc 2.34+; macOS binary deployment minimum is 13.0; Windows was tested on Server 2025 amd64 and Windows 11 ARM64. See [platform support](docs/platform-support.md) for precise tested/runtime limits. Older v0.1.0/v0.1.1 releases remain Linux-amd64 only.
+**CPA 8.1.0: Linux, macOS and Windows, each amd64/arm64.** The [latest release](https://github.com/kazimshah39/quota-first-router/releases/latest) provides all six native-tested packages. Linux requires glibc 2.34+; macOS binary deployment minimum is 13.0; Windows was tested on Server 2025 amd64 and Windows 11 ARM64. See [platform support](docs/platform-support.md) for precise tested/runtime limits. Older v0.1.0/v0.1.1 releases remain Linux-amd64 only.
 
 The plugin is listed in the official CPA registry. Refresh the plugin store and search for **Quota First Router**. If you use a separate registry, the author’s source is also available; keep any existing sources when adding it:
 
@@ -93,9 +93,9 @@ The worker reconciles the roster and reset deadlines every 30 seconds and polls 
 
 **Proxy limitation:** CPA's lifecycle configuration does not expose its global upstream proxy to this native plugin. Configure `proxy_url` explicitly when CPA uses `requests.proxy-url`. Per-account `proxy_url` is respected; otherwise Go's environment proxy policy applies. Custom account `base_url` is explicitly unsupported for quota polling and reported, never silently bypassed. Redirects are refused.
 
-## Account quota monitor (0.2.0)
+## Account quota monitor
 
-The read-only **Quota First Router** page shows quota left, reset timers, account filters, picks and polling issues. Open **How it works** for short examples. Public HTML is generic; account diagnostics require management login. A pick is not proof of which account served a request. See the [monitor guide](docs/monitor.md) and [0.2.0 release notes](docs/releases/0.2.0.md). Optional warmup is off by default and requires [extra setup on Linux or macOS](docs/operations.md#optional-codex-warmup).
+The read-only **Quota First Router** page shows quota left, reset timers, account filters, picks and polling issues. Open **How it works** for short examples. Public HTML is generic; account diagnostics require management login. A pick is not proof of which account served a request. See the [monitor guide](docs/monitor.md) and [release notes](https://github.com/kazimshah39/quota-first-router/releases). Optional warmup is off by default and requires [extra setup on Linux or macOS](docs/operations.md#optional-codex-warmup).
 
 ## Authenticated diagnostics
 

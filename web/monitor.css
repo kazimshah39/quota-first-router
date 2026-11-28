@@ -78,7 +78,10 @@ button:disabled { opacity: .55; cursor: wait; }
 .help-topic .help-example { margin-top: 8px; padding: 7px 9px; border-inline-start: 2px solid var(--selected-ink); border-radius: 0 5px 5px 0; background: var(--selected); }
 .help-filters { margin: 6px 0 0; padding-inline-start: 20px; }
 .help-filters li + li { margin-top: 4px; }
-.accounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 298px), 1fr)); gap: 8px; align-items: start; }
+.accounts { display: grid; gap: 14px; }
+.account-tier > h2 { margin-bottom: 6px; }
+.tier-priority { color: var(--muted); font-size: 12px; font-weight: 400; }
+.account-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 298px), 1fr)); gap: 8px; align-items: start; }
 #coverage:not([hidden]) { margin-bottom: 6px; }
 .account { min-width: 0; padding: 9px 11px; }
 .account[data-selected="true"] { background: var(--selected); }
@@ -103,9 +106,8 @@ button:disabled { opacity: .55; cursor: wait; }
 .quota-bar::-webkit-progress-value { background: var(--fill); border-radius: 2px; }
 .quota-bar::-moz-progress-bar { background: var(--fill); border-radius: 2px; }
 .quota-caption { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
-.account-extra { margin-top: 5px; font-size: 12px; }
-.account-extra summary, .detail { color: var(--muted); }
-.account-extra p { margin-top: 4px; }
+.detail { color: var(--muted); }
+.account-notice { margin-top: 5px; font-size: 12px; }
 .history-panel { margin-top: 10px; padding: 6px 1px; border-top: 1px solid var(--line); }
 .history-panel > summary { font-weight: 650; padding: 3px 0; }
 #activity-count { font-size: 12px; font-weight: normal; }
