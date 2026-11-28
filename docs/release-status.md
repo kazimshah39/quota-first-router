@@ -1,5 +1,11 @@
 # Release status
 
+## v0.2.1 — published, six native targets verified, deployed live
+
+- [GitHub release](https://github.com/kazimshah39/quota-first-router/releases/tag/v0.2.1) and [release notes](releases/0.2.1.md). All six public ZIPs and `checksums.txt` matched the verified artifacts from [CI 46112384248](https://github.com/kazimshah39/quota-first-router/actions/runs/46112384248), source `04152c7`. [Publication run 46113256059](https://github.com/kazimshah39/quota-first-router/actions/runs/46113256059) passed.
+- Disposable CPA 8.1.0 verified discovery, installation, defaults, disable, and reinstall from the official store. The downloaded Linux amd64 library matched the tested release package.
+- The installed live CPA switched from the reviewed preview to that exact public library using a new versioned file. Nine account quota snapshots were fresh. Routing priorities, unrelated settings, and process IDs were unchanged.
+
 ## v0.2.0 — published, six native targets verified
 
 - [Immutable GitHub release](https://github.com/kazimshah39/quota-first-router/releases/tag/v0.2.0): Linux, macOS and Windows ZIPs for amd64 and arm64, plus `checksums.txt`. The public downloads matched the tested artifacts byte for byte.
